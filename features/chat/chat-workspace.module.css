@@ -1,0 +1,20 @@
+.workspace { display:grid; grid-template-columns:240px minmax(0,1fr); height:calc(100vh - 140px); min-height:580px; overflow:hidden; border:1px solid var(--border); border-radius:20px; background:#fff; box-shadow:0 14px 40px rgba(31,35,48,.05); }
+.history { display:flex; flex-direction:column; gap:8px; padding:18px 14px; border-right:1px solid var(--border); background:#fafafe; }
+.historyLabel { margin:18px 8px 4px; color:var(--muted); font-size:12px; }
+.historyItem { display:flex; flex-direction:column; gap:5px; padding:12px; border:0; border-radius:11px; background:transparent; text-align:left; cursor:pointer; }
+.historyItem small { color:var(--muted); font-size:11px; }
+.historyItem:hover,.historyItem.active { background:#eeecff; color:#5544db; }
+.chatPanel { display:grid; min-width:0; grid-template-rows:auto 1fr auto; }
+.chatHeader { display:flex; align-items:center; justify-content:space-between; min-height:66px; padding:12px 20px; border-bottom:1px solid var(--border); }
+.aiIdentity { display:flex; align-items:center; gap:10px; }
+.aiIdentity strong,.aiIdentity small { display:block; }
+.aiIdentity small { margin-top:3px; color:var(--muted); font-size:11px; }
+.messages { display:grid; overflow:auto; place-items:center; padding:24px; background:radial-gradient(circle at 50% 20%,#f5f2ff 0,transparent 38%); }
+.welcome { max-width:620px; text-align:center; }
+.welcomeIcon { display:grid; width:58px; height:58px; margin:0 auto 18px; place-items:center; border-radius:18px; background:linear-gradient(145deg,#8678ff,#5d4be2); color:#fff; font-size:23px; box-shadow:0 12px 28px rgba(109,93,252,.28); }
+.welcome h2 { margin:0 0 8px; font-size:25px; }
+.welcome p { margin:0 auto 22px; color:var(--muted); line-height:1.7; }
+.quickQuestions { display:flex; flex-wrap:wrap; justify-content:center; gap:9px; }
+.composer { display:flex; align-items:flex-end; gap:10px; margin:14px 18px 18px; padding:8px 9px 8px 15px; border:1px solid #dedfea; border-radius:17px; background:#fff; box-shadow:0 8px 22px rgba(31,35,48,.06); }
+.composer :global(.ant-input) { padding:6px 0; border:0; box-shadow:none !important; resize:none; }
+@media (max-width:760px) { .workspace { grid-template-columns:1fr; height:calc(100dvh - 118px); min-height:520px; } .history { display:none; } .messages { padding:18px; } .quickQuestions { flex-direction:column; } }

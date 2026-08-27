@@ -1,8 +1,13 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f5f6fa;
+  --foreground: #161722;
+  --muted: #74788d;
+  --brand: #6d5dfc;
+  --brand-soft: #efedff;
+  --surface: #ffffff;
+  --border: #e9eaf0;
 }
 
 @theme inline {
@@ -12,15 +17,72 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
 }
 
+html,
 body {
+  min-height: 100%;
+  margin: 0;
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+.page-stack {
+  display: grid;
+  gap: 20px;
+}
+
+.page-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.span-4 { grid-column: span 4; }
+.span-8 { grid-column: span 8; }
+.span-12 { grid-column: span 12; }
+.muted-text { color: var(--muted); }
+
+.page-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.surface-card.ant-card {
+  border-color: var(--border);
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(31, 35, 48, 0.04);
+}
+
+@media (max-width: 900px) {
+  .span-4,
+  .span-8 { grid-column: span 12; }
+}
+
+@media (max-width: 640px) {
+  .page-stack,
+  .page-grid { gap: 14px; }
+}
+
+@media (max-width: 560px) {
+  .page-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
 }
