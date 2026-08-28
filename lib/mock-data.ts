@@ -12,7 +12,7 @@ export const customers = [
 ];
 
 export const knowledgeFiles = [
-  { key: "1", name: "门店预约与退款规则.pdf", version: "v3", chunks: 28, updatedAt: "今天 16:20", status: "可用" },
-  { key: "2", name: "剧本内容与适龄说明.pdf", version: "v2", chunks: 64, updatedAt: "昨天 11:05", status: "可用" },
-  { key: "3", name: "停车及到店指引.pdf", version: "v1", chunks: 12, updatedAt: "8月24日", status: "处理中" },
+  { key: "1", type: "门店规则", name: "门店预约与退款规则.pdf", version: "v3", chunks: 28, updatedAt: "今天 16:20", status: "可用" },
+  { key: "2", type: "剧本", name: "雾隐长夜", version: "v2", chunks: 64, updatedAt: "昨天 11:05", status: "可用" },
+  { key: "3", type: "其他文档", name: "停车及到店指引.pdf", version: "v1", chunks: 12, updatedAt: "8月24日", status: "处理中" },
 ];

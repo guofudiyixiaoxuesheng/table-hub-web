@@ -8,6 +8,6 @@ const icons = {
   upload: <UploadOutlined />,
 };
 
-export function PageActionButton({ label, icon }: { label: string; icon: keyof typeof icons }) {
-  return <Button type="primary" icon={icons[icon]}>{label}</Button>;
+export function PageActionButton({ label, icon, href }: { label: string; icon: keyof typeof icons; href?: string }) {
+  return <Button type="primary" icon={icons[icon]} href={href}>{label}</Button>;
 }

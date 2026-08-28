@@ -12,7 +12,7 @@ export function KnowledgeDashboard() {
           <Typography.Text type="secondary">知识库状态</Typography.Text>
           <Typography.Title level={3} style={{ margin: 0 }}>104 个知识片段</Typography.Title>
           <Progress percent={82} strokeColor="#6d5dfc" />
-          <Typography.Text type="secondary">3 个文档中有 2 个已完成向量化</Typography.Text>
+          <Typography.Text type="secondary">剧本与门店资料使用同一套版本和向量状态</Typography.Text>
         </Space>
       </Card>
       <Card className="surface-card span-8">
@@ -22,13 +22,14 @@ export function KnowledgeDashboard() {
           <Typography.Text type="secondary">上传后将自动检测重复与新版本</Typography.Text>
         </Upload.Dragger>
       </Card>
-      <Card className="surface-card span-12" title="知识文档">
+      <Card className="surface-card span-12" title="全部知识资源">
         <Table
           rowKey="key"
           pagination={false}
           scroll={{ x: 720 }}
           dataSource={knowledgeFiles}
           columns={[
+            { title: "类型", dataIndex: "type", width: 110, render: (type) => <Tag color={type === "剧本" ? "purple" : "blue"}>{type}</Tag> },
             { title: "文档", dataIndex: "name", render: (name) => <Space><FilePdfOutlined style={{ color: "#e15b64" }} />{name}</Space> },
             { title: "版本", dataIndex: "version", width: 90 },
             { title: "片段", dataIndex: "chunks", width: 90 },

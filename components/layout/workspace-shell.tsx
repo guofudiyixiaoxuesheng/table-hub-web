@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { Drawer, Layout } from "antd";
+import { useEffect, useState } from "react";
+import { Drawer, Layout, Spin } from "antd";
+import { usePathname, useRouter } from "next/navigation";
+import { canAccessPath, isPublicPath } from "@/config/access";
+import { useAuth } from "@/features/auth/auth-provider";
 import { Brand } from "./brand";
 import { SidebarNavigation } from "./sidebar-navigation";
 import { TopBar } from "./top-bar";
@@ -11,6 +14,18 @@ const { Sider, Content } = Layout;
 
 export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { loading, user } = useAuth();
+  const pathname = usePathname();
+  const router = useRouter();
+  const allowed = user ? canAccessPath(user.role, pathname) : isPublicPath(pathname);
+
+  useEffect(() => {
+    if (!loading && user && !allowed) router.replace("/chat");
+  }, [allowed, loading, router, user]);
+
+  if ((loading && !isPublicPath(pathname)) || !allowed) {
+    return <div className={styles.authLoading}><Spin size="large" tip="正在验证登录状态" /></div>;
+  }
 
   return (
     <Layout className={styles.shell}>

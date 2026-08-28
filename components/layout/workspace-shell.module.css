@@ -20,3 +20,4 @@
 .content { width: 100%; max-width: 1500px; margin: 0 auto; padding: 28px 30px 40px; }
 @media (max-width:900px) { .desktopSidebar { display:none; } .mainLayout { margin-left:0; } .mobileMenuButton { display:inline-flex !important; margin-left:-8px; } .topBar { padding:0 18px; } .topBarIntro { margin-right:auto; margin-left:8px; } .content { padding:22px 18px 32px; } }
 @media (max-width:520px) { .topBarIntro small,.profileButton span { display:none; } .content { padding:18px 14px 28px; } }
+.authLoading { display:grid; min-height:100vh; place-items:center; background:#f7f7fb; }

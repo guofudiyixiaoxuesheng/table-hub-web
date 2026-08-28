@@ -1,0 +1,7 @@
+.back { width:max-content; margin-left:-12px; }
+.uploadIcon { color:var(--brand); font-size:34px; }
+.folderName { display:flex; align-items:center; gap:12px; margin-top:22px; padding:14px; border-radius:12px; background:#f7f6ff; color:#5d4be2; font-size:21px; }
+.folderName span,.folderName small,.folderName strong { display:block; min-width:0; }
+.folderName small { color:var(--muted); font-size:11px; font-weight:400; }
+.folderName strong { overflow:hidden; margin-top:3px; color:var(--foreground); font-size:14px; text-overflow:ellipsis; white-space:nowrap; }
+.safeIcon { margin-right:7px; color:#3d9b86; }

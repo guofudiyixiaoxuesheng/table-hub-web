@@ -13,5 +13,6 @@
 .formCard :global(.ant-typography) { margin-top:0; }
 .formMeta { display:flex; align-items:center; justify-content:space-between; margin:-6px 0 22px; }
 .help { margin-top:24px; color:#9295a4; font-size:12px; text-align:center; }
+.error { margin:-8px 0 16px !important; }
 .mobileBrand { display:none; }
 @media (max-width:900px) { .page { grid-template-columns:1fr; background:linear-gradient(180deg,#f1efff,#fff 38%); } .story { display:none; } .formSide { align-content:start; padding:48px 22px; } .mobileBrand { display:flex; align-items:center; gap:9px; margin-bottom:12vh; font-size:20px; font-weight:750; } .mobileBrand span { display:grid; width:36px; height:36px; place-items:center; border-radius:11px; background:#6d5dfc; color:#fff; } }

@@ -1,11 +1,27 @@
 "use client";
 
-import { LockOutlined, MobileOutlined, ThunderboltFilled } from "@ant-design/icons";
-import { Button, Checkbox, Form, Input, Typography } from "antd";
-import Link from "next/link";
+import { ThunderboltFilled } from "@ant-design/icons";
+import { Tabs, Typography } from "antd";
+import { useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useAuth } from "@/features/auth/auth-provider";
+import { LoginForm } from "./login-form";
+import { RegisterForm } from "./register-form";
 import styles from "./login-panel.module.css";
 
 export function LoginPanel() {
+  const { loading, user } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const requestedPath = searchParams.get("next");
+  const nextPath = requestedPath?.startsWith("/") && !requestedPath.startsWith("//")
+    ? requestedPath
+    : "/chat";
+
+  useEffect(() => {
+    if (!loading && user) router.replace(nextPath);
+  }, [loading, nextPath, router, user]);
+
   return (
     <main className={styles.page}>
       <section className={styles.story}>
@@ -20,19 +36,16 @@ export function LoginPanel() {
       <section className={styles.formSide}>
         <div className={styles.mobileBrand}><span><ThunderboltFilled /></span>TableHub</div>
         <div className={styles.formCard}>
-          <Typography.Title level={2}>欢迎回来</Typography.Title>
-          <Typography.Paragraph type="secondary">登录门店工作台，继续今天的运营。</Typography.Paragraph>
-          <Form layout="vertical" size="large" requiredMark={false}>
-            <Form.Item label="手机号" name="phone" rules={[{ required: true, message: "请输入手机号" }]}>
-              <Input prefix={<MobileOutlined />} placeholder="请输入登录手机号" />
-            </Form.Item>
-            <Form.Item label="密码" name="password" rules={[{ required: true, message: "请输入密码" }]}>
-              <Input.Password prefix={<LockOutlined />} placeholder="请输入密码" />
-            </Form.Item>
-            <div className={styles.formMeta}><Checkbox>记住登录状态</Checkbox><Button type="link">忘记密码？</Button></div>
-            <Link href="/chat"><Button type="primary" block size="large">登录工作台</Button></Link>
-          </Form>
-          <p className={styles.help}>首次使用？请联系平台管理员开通门店账号</p>
+          <Typography.Title level={2}>TableHub 账户</Typography.Title>
+          <Typography.Paragraph type="secondary">登录已有门店，或创建你的第一个门店账户。</Typography.Paragraph>
+          <Tabs
+            defaultActiveKey="login"
+            items={[
+              { key: "login", label: "登录", children: <LoginForm onSuccess={() => router.replace(nextPath)} /> },
+              { key: "register", label: "注册", children: <RegisterForm onSuccess={() => router.replace(nextPath)} /> },
+            ]}
+          />
+          <p className={styles.help}>普通用户可直接注册；店长创建门店；DM 使用店长邀请码加入</p>
         </div>
       </section>
     </main>

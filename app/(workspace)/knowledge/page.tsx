@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: "知识库" };
 export default function KnowledgePage() {
   return (
     <div className="page-stack">
-      <PageHeading title="知识库" description="管理 AI 客服使用的门店资料、版本和向量状态" action={<PageActionButton icon="upload" label="上传文档" />} />
+      <PageHeading title="知识库" description="统一管理剧本、门店规则、FAQ、活动资料及其他文档" action={<PageActionButton icon="upload" label="上传知识资源" href="/knowledge/upload" />} />
       <KnowledgeDashboard />
     </div>
   );
