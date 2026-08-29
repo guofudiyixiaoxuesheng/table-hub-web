@@ -44,12 +44,16 @@ textarea {
 .page-stack {
   display: grid;
   gap: 20px;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .page-grid {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 20px;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .span-4 { grid-column: span 4; }
@@ -65,9 +69,15 @@ textarea {
 }
 
 .surface-card.ant-card {
+  min-width: 0;
   border-color: var(--border);
   border-radius: 18px;
   box-shadow: 0 10px 30px rgba(31, 35, 48, 0.04);
+}
+
+.surface-card.ant-card > .ant-card-body {
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 @media (max-width: 900px) {

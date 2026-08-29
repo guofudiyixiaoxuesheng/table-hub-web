@@ -1,0 +1,72 @@
+.resourceTable :global(.ant-table) {
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.resourceTable :global(.ant-table-container) {
+  max-width: 100%;
+}
+
+.resourceTable :global(.ant-table-content),
+.resourceTable :global(.ant-table-body) {
+  overflow-x: auto !important;
+}
+
+.resourceTable :global(.ant-table-cell-fix-right),
+.resourceTable :global(.ant-table-cell-fix-right-first),
+.resourceTable :global(.ant-table-cell-fix-right-last) {
+  background: #fff;
+}
+
+.resourceTable :global(.ant-table-cell) {
+  vertical-align: middle;
+}
+
+.ellipsisText {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.ellipsisTooltip {
+  max-width: min(560px, 82vw);
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.resourceName {
+  display: inline-flex;
+  align-items: center;
+  max-width: 360px;
+  min-width: 0;
+  gap: 8px;
+  vertical-align: middle;
+}
+
+.resourceNameText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actions {
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  min-width: max-content;
+  width: 100%;
+}
+
+.actionButton {
+  padding-inline: 8px;
+}
+
+@media (max-width: 640px) {
+  .actionButton {
+    padding-inline: 6px;
+  }
+}
