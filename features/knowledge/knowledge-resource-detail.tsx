@@ -8,7 +8,6 @@ import {
   CheckCircleOutlined,
   ClusterOutlined,
   EyeOutlined,
-  FileSearchOutlined,
   FileTextOutlined,
   NodeIndexOutlined,
   PlayCircleOutlined,
@@ -17,6 +16,7 @@ import {
 } from "@ant-design/icons";
 import { Button, Card, Col, Collapse, Descriptions, Drawer, Empty, Image, Input, Modal, Progress, Row, Select, Space, Statistic, Table, Tabs, Tag, Timeline, Tooltip, Typography, message } from "antd";
 import { chunkKnowledgeDocument, embedKnowledgeChunks, getAssetPreviewUrl, getKnowledgeManifest, getLoadedMarkdown, listKnowledgeChunks, listKnowledgeDocuments, listKnowledgeEmbeddings, listLoadedFiles, loadKnowledgeDocument, loadKnowledgeFile, retrieveKnowledgeChunks } from "@/lib/oss/knowledge-resource-api";
+import { useIdempotencyKey } from "@/lib/hooks/use-idempotency-key";
 import {
   KNOWLEDGE_RESOURCE_OPTIONS,
   SCRIPT_GENRE_OPTIONS,
@@ -47,7 +47,6 @@ const chunkTypeLabels: Record<string, string> = {
 
 const ragSteps = [
   { key: "loaded", title: "文件加载", icon: <FileTextOutlined />, done: true },
-  { key: "parsed", title: "解析", icon: <FileSearchOutlined />, done: false },
   { key: "chunked", title: "切片", icon: <BranchesOutlined />, done: false },
   { key: "vectorized", title: "向量化", icon: <ClusterOutlined />, done: false },
   { key: "retrieval", title: "召回测试", icon: <NodeIndexOutlined />, done: false },
@@ -126,14 +125,17 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
   const [reloadingFileId, setReloadingFileId] = useState<string | null>(null);
   const [assetUrls, setAssetUrls] = useState<Map<string, string>>(new Map());
   const [messageApi, contextHolder] = message.useMessage();
+  const loadAllIdempotency = useIdempotencyKey([document?.id, document?.activeVersionId, "load-all"]);
+  const chunkIdempotency = useIdempotencyKey([document?.id, document?.activeVersionId, "chunk"]);
+  const embeddingIdempotency = useIdempotencyKey([document?.id, document?.activeVersionId, "embedding"]);
   const [modalApi, modalContextHolder] = Modal.useModal();
 
   useEffect(() => {
     let mounted = true;
     async function load() {
       try {
-        const documents = await listKnowledgeDocuments();
-        const current = documents.find((item) => item.id === documentId) ?? null;
+        const documents = await listKnowledgeDocuments({ pageSize: 100 });
+        const current = documents.items.find((item) => item.id === documentId) ?? null;
         if (!current) {
           if (mounted) setDocument(null);
           return;
@@ -207,9 +209,10 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
     if (!document?.activeVersionId) return;
     setLoadingDocuments(true);
     try {
-      const result = await loadKnowledgeDocument(document.id, document.activeVersionId);
+      const result = await loadKnowledgeDocument(document.id, document.activeVersionId, loadAllIdempotency.getKey());
       setParsedFiles(result.files);
       messageApi.success("文档加载完成");
+      loadAllIdempotency.reset();
     } catch (error) {
       messageApi.error(error instanceof Error ? error.message : "文档加载失败");
     } finally {
@@ -233,9 +236,10 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
     if (!document?.activeVersionId) return;
     setChunking(true);
     try {
-      const result = await chunkKnowledgeDocument(document.id, document.activeVersionId);
+      const result = await chunkKnowledgeDocument(document.id, document.activeVersionId, chunkIdempotency.getKey());
       setChunkResult(result);
       messageApi.success("文档切片完成");
+      chunkIdempotency.reset();
     } catch (error) {
       messageApi.error(error instanceof Error ? error.message : "文档切片失败");
     } finally {
@@ -247,9 +251,10 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
     if (!document?.activeVersionId) return;
     setEmbedding(true);
     try {
-      const result = await embedKnowledgeChunks(document.id, document.activeVersionId);
+      const result = await embedKnowledgeChunks(document.id, document.activeVersionId, embeddingIdempotency.getKey());
       setEmbeddingResult(result);
       messageApi.success("向量化完成");
+      embeddingIdempotency.reset();
     } catch (error) {
       messageApi.error(error instanceof Error ? error.message : "向量化失败");
     } finally {
@@ -279,7 +284,7 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
     if (!document?.activeVersionId) return;
     setReloadingFileId(record.fileId);
     try {
-      const result = await loadKnowledgeFile(document.id, document.activeVersionId, record.fileId);
+      const result = await loadKnowledgeFile(document.id, document.activeVersionId, record.fileId, crypto.randomUUID());
       setParsedFiles((current) => {
         const others = current.filter((item) => item.fileId !== result.fileId);
         return [...others, result];
@@ -419,7 +424,6 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
                 </Space>
               ),
             },
-            { key: "parse", label: "解析", children: <Empty description="解析结果将在 PDF/DOCX/TXT 读取后展示" /> },
             {
               key: "chunks",
               label: "切片",
@@ -499,13 +503,13 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
                 <Space orientation="vertical" size={16} style={{ width: "100%" }}>
                   <Card>
                     <Space orientation="vertical" size={12} style={{ width: "100%" }}>
-                      <Typography.Text type="secondary">这里可以测试 BM25、向量和混合召回效果，方便后续接 DM 助手前先校验命中的 chunk。</Typography.Text>
+                      <Typography.Text type="secondary">这里可以测试 BM25、向量和混合召回效果。混合模式先用 RRF 融合候选；如果后端开启 RERANK_ENABLED，会继续精排后返回。</Typography.Text>
                       <Space.Compact style={{ width: "100%" }}>
                         <Select<KnowledgeRetrieveMode>
                           value={retrieveMode}
                           style={{ width: 130 }}
                           options={[
-                            { label: "混合", value: "hybrid" },
+                            { label: "混合 RRF", value: "hybrid" },
                             { label: "BM25", value: "bm25" },
                             { label: "向量", value: "vector" },
                           ]}
@@ -536,7 +540,7 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
                       { title: "类型", dataIndex: "chunkType", width: 120, render: (type) => <Tag color="purple">{chunkTypeLabels[type] ?? type}</Tag> },
                       { title: "标题", dataIndex: "title", width: 180, ellipsis: true, render: (title) => <EllipsisText value={title ?? "无标题"} /> },
                       { title: "分数", dataIndex: "score", width: 100, render: (score: number) => score.toFixed(4) },
-                      { title: "召回", dataIndex: "scoreType", width: 100, render: (type) => <Tag color={type === "bm25" ? "blue" : type === "vector" ? "green" : "gold"}>{type}</Tag> },
+                      { title: "召回", dataIndex: "scoreType", width: 110, render: (type) => <Tag color={type === "bm25" ? "blue" : type === "vector" ? "green" : type === "rerank" ? "magenta" : "gold"}>{type === "rrf" ? "RRF" : type === "rerank" ? "精排" : type}</Tag> },
                       { title: "内容", dataIndex: "content", width: 300, ellipsis: true, render: (content) => <EllipsisText value={content} /> },
                     ]}
                   />

@@ -14,6 +14,13 @@ async function parseEnvelope<T>(response: Response): Promise<T> {
   return body?.data as T;
 }
 
+async function parseFullEnvelope<T>(response: Response): Promise<ApiEnvelope<T>> {
+  const body = (await response.json().catch(() => null)) as ApiEnvelope<T> | null;
+  if (!response.ok) throw new Error(body?.message || `请求失败：HTTP ${response.status}`);
+  if (!body) throw new Error("接口响应为空");
+  return body;
+}
+
 export async function refreshSession(): Promise<AuthSession> {
   if (!refreshRequest) {
     refreshRequest = fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
@@ -56,4 +63,30 @@ export async function apiFetch<T>(
     }
   }
   return parseEnvelope<T>(response);
+}
+
+export async function apiFetchEnvelope<T>(
+  path: string,
+  options: RequestInit = {},
+  retry = true,
+): Promise<ApiEnvelope<T>> {
+  const token = getAccessToken();
+  const headers = new Headers(options.headers);
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    credentials: "include",
+    headers,
+  });
+  if (response.status === 401 && retry && path !== "/api/v1/auth/refresh") {
+    try {
+      await refreshSession();
+      return apiFetchEnvelope<T>(path, options, false);
+    } catch {
+      setAccessToken(null);
+      if (typeof window !== "undefined") window.dispatchEvent(new Event("tablehub:unauthorized"));
+    }
+  }
+  return parseFullEnvelope<T>(response);
 }

@@ -90,6 +90,26 @@ export type KnowledgeDocumentListItem = {
   updatedAt: string;
 };
 
+export type KnowledgeDocumentListMeta = {
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+export type ListKnowledgeDocumentsParams = {
+  resourceType?: KnowledgeResourceType;
+  keyword?: string;
+  status?: string;
+  hasActiveVersion?: boolean;
+  page?: number;
+  pageSize?: number;
+};
+
+export type KnowledgeDocumentListResult = {
+  items: KnowledgeDocumentListItem[];
+  meta: KnowledgeDocumentListMeta;
+};
+
 export type KnowledgeManifestFile = KnowledgeResourceFile & {
   fileId: string;
   objectKey: string;

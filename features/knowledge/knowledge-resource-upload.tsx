@@ -13,6 +13,7 @@ import { Button, Card, Col, Form, Input, Progress, Row, Select, Space, Statistic
 import type { UploadFile } from "antd";
 import { downloadManifest, getRelativePath, toManifestFile, toManifestPreview, type BrowserFolderFile } from "@/lib/oss/knowledge-resource-manifest";
 import { completeKnowledgeUpload, retryFailedKnowledgeUploads, uploadKnowledgeResourceDraft } from "@/lib/oss/knowledge-resource-api";
+import { useIdempotencyKey } from "@/lib/hooks/use-idempotency-key";
 import {
   KNOWLEDGE_RESOURCE_OPTIONS,
   SCRIPT_GENRE_OPTIONS,
@@ -57,6 +58,7 @@ export function KnowledgeResourceUpload() {
   const [progress, setProgress] = useState(0);
   const [progressLabel, setProgressLabel] = useState("准备上传");
   const [messageApi, contextHolder] = message.useMessage();
+  const uploadIdempotency = useIdempotencyKey([fileList.length]);
   const sourceFiles = useMemo(() => getSourceFiles(fileList), [fileList]);
   const totalSize = useMemo(() => sourceFiles.reduce((sum, file) => sum + file.size, 0), [sourceFiles]);
   const rootFolder = sourceFiles[0] ? getRelativePath(sourceFiles[0]).split("/")[0] : "尚未选择";
@@ -102,6 +104,7 @@ export function KnowledgeResourceUpload() {
       setUploadDraft(null);
       setProgress(0);
       setProgressLabel("正在计算 SHA256");
+      const idempotencyKey = uploadIdempotency.reset();
       const draft = await uploadKnowledgeResourceDraft(
         buildUploadPayload(values),
         sourceFiles,
@@ -110,6 +113,7 @@ export function KnowledgeResourceUpload() {
           setProgress(Math.round(completed / total * 100));
         },
         (completed, total) => setProgress(Math.round(completed / total * 100)),
+        idempotencyKey,
       );
       setUploadDraft(draft);
       if (draft.failures.length) {
@@ -117,9 +121,10 @@ export function KnowledgeResourceUpload() {
         return;
       }
       setProgressLabel("正在完成上传校验");
-      const result = await completeKnowledgeUpload(draft.initiate.uploadId, draft.completed);
+      const result = await completeKnowledgeUpload(draft.initiate.uploadId, draft.completed, idempotencyKey);
       messageApi.success(`上传完成，版本 ID：${result.versionId}`);
       setUploadDraft(null);
+      uploadIdempotency.reset();
     } catch (error) {
       messageApi.error(error instanceof Error ? error.message : "上传失败，请稍后重试");
     } finally {
@@ -144,9 +149,10 @@ export function KnowledgeResourceUpload() {
         return;
       }
       setProgressLabel("正在完成上传校验");
-      const result = await completeKnowledgeUpload(nextDraft.initiate.uploadId, nextDraft.completed);
+      const result = await completeKnowledgeUpload(nextDraft.initiate.uploadId, nextDraft.completed, uploadIdempotency.getKey());
       messageApi.success(`上传完成，版本 ID：${result.versionId}`);
       setUploadDraft(null);
+      uploadIdempotency.reset();
     } catch (error) {
       messageApi.error(error instanceof Error ? error.message : "重试失败，请稍后再试");
     } finally {

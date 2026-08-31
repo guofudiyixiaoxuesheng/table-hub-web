@@ -65,8 +65,21 @@
   padding-inline: 8px;
 }
 
+.searchInput {
+  width: min(260px, 54vw);
+}
+
+.typeSelect {
+  width: 140px;
+}
+
 @media (max-width: 640px) {
   .actionButton {
     padding-inline: 6px;
+  }
+
+  .searchInput,
+  .typeSelect {
+    width: 100%;
   }
 }

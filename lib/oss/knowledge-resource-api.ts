@@ -5,6 +5,7 @@ import type {
   AssetPreviewUrlResult,
   KnowledgeResourceFile,
   KnowledgeDocumentListItem,
+  KnowledgeDocumentListResult,
   KnowledgeDocumentManifest,
   KnowledgeChunkListResult,
   KnowledgeEmbeddingSummary,
@@ -13,30 +14,33 @@ import type {
   KnowledgeUploadDraft,
   KnowledgeUploadFailure,
   KnowledgeUploadResult,
+  ListKnowledgeDocumentsParams,
   LoadKnowledgeDocumentResult,
   ParsedKnowledgeFile,
   ParsedMarkdownResult,
 } from "./knowledge-resource-types";
 import { createClientFileId, toManifestFile, type BrowserFolderFile } from "./knowledge-resource-manifest";
-import { apiFetch } from "@/lib/api/client";
+import { apiFetch, apiFetchEnvelope } from "@/lib/api/client";
 
 export async function uploadKnowledgeResource(
   payload: Omit<CreateKnowledgeResourcePayload, "files">,
   sourceFiles: BrowserFolderFile[],
   onProgress?: (completed: number, total: number) => void,
   onHashProgress?: (completed: number, total: number) => void,
+  idempotencyKey?: string,
 ): Promise<KnowledgeUploadResult> {
   const draft = await uploadKnowledgeResourceDraft(payload, sourceFiles, onProgress, onHashProgress);
   if (draft.failures.length) {
     throw new Error(`有 ${draft.failures.length} 个文件上传失败，请重试失败文件`);
   }
-  return completeKnowledgeUpload(draft.initiate.uploadId, draft.completed);
+  return completeKnowledgeUpload(draft.initiate.uploadId, draft.completed, idempotencyKey);
 }
 
 export async function initiateKnowledgeUpload(
   payload: Omit<CreateKnowledgeResourcePayload, "files">,
   sourceFiles: BrowserFolderFile[],
   onHashProgress?: (completed: number, total: number) => void,
+  idempotencyKey?: string,
 ): Promise<{ initiate: InitiateKnowledgeUploadResponse; manifestFiles: KnowledgeResourceFile[] }> {
   let hashed = 0;
   const files = await Promise.all(
@@ -49,7 +53,7 @@ export async function initiateKnowledgeUpload(
   );
   const initiate = await apiFetch<InitiateKnowledgeUploadResponse>("/api/v1/knowledge/uploads/initiate", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}) },
     body: JSON.stringify({ ...payload, files }),
   });
   return { initiate, manifestFiles: files };
@@ -86,8 +90,9 @@ export async function uploadKnowledgeResourceDraft(
   sourceFiles: BrowserFolderFile[],
   onProgress?: (completed: number, total: number) => void,
   onHashProgress?: (completed: number, total: number) => void,
+  idempotencyKey?: string,
 ): Promise<KnowledgeUploadDraft> {
-  const { initiate, manifestFiles } = await initiateKnowledgeUpload(payload, sourceFiles, onHashProgress);
+  const { initiate, manifestFiles } = await initiateKnowledgeUpload(payload, sourceFiles, onHashProgress, idempotencyKey);
   const completed: CompletedUploadFile[] = [];
   const failures: KnowledgeUploadFailure[] = [];
 
@@ -137,17 +142,34 @@ export async function retryFailedKnowledgeUploads(
   return { ...draft, completed: nextCompleted, failures: nextFailures };
 }
 
-export function completeKnowledgeUpload(uploadId: string, completed: CompletedUploadFile[]): Promise<KnowledgeUploadResult> {
+export function completeKnowledgeUpload(uploadId: string, completed: CompletedUploadFile[], idempotencyKey?: string): Promise<KnowledgeUploadResult> {
   return apiFetch<KnowledgeUploadResult>(`/api/v1/knowledge/uploads/${uploadId}/complete`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}) },
     body: JSON.stringify({ files: completed }),
   });
 }
 
-export function listKnowledgeDocuments(resourceType?: string): Promise<KnowledgeDocumentListItem[]> {
-  const query = resourceType ? `?resourceType=${encodeURIComponent(resourceType)}` : "";
-  return apiFetch<KnowledgeDocumentListItem[]>(`/api/v1/knowledge/documents${query}`);
+export async function listKnowledgeDocuments(params: ListKnowledgeDocumentsParams = {}): Promise<KnowledgeDocumentListResult> {
+  const query = new URLSearchParams();
+  if (params.resourceType) query.set("resourceType", params.resourceType);
+  if (params.keyword?.trim()) query.set("keyword", params.keyword.trim());
+  if (params.status) query.set("status", params.status);
+  if (params.hasActiveVersion !== undefined) query.set("hasActiveVersion", String(params.hasActiveVersion));
+  if (params.page) query.set("page", String(params.page));
+  if (params.pageSize) query.set("pageSize", String(params.pageSize));
+
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  const envelope = await apiFetchEnvelope<KnowledgeDocumentListItem[]>(`/api/v1/knowledge/documents${suffix}`);
+  const meta = envelope.meta ?? {};
+  return {
+    items: envelope.data,
+    meta: {
+      total: Number(meta.total ?? envelope.data.length),
+      page: Number(meta.page ?? params.page ?? 1),
+      pageSize: Number(meta.pageSize ?? params.pageSize ?? envelope.data.length),
+    },
+  };
 }
 
 export function getKnowledgeManifest(documentId: string, versionId: string): Promise<KnowledgeDocumentManifest> {
@@ -158,12 +180,18 @@ export function deleteKnowledgeDocument(documentId: string): Promise<void> {
   return apiFetch<void>(`/api/v1/knowledge/${documentId}`, { method: "DELETE" });
 }
 
-export function loadKnowledgeDocument(documentId: string, versionId: string): Promise<LoadKnowledgeDocumentResult> {
-  return apiFetch<LoadKnowledgeDocumentResult>(`/api/v1/knowledge/${documentId}/versions/${versionId}/load`, { method: "POST" });
+export function loadKnowledgeDocument(documentId: string, versionId: string, idempotencyKey?: string): Promise<LoadKnowledgeDocumentResult> {
+  return apiFetch<LoadKnowledgeDocumentResult>(`/api/v1/knowledge/${documentId}/versions/${versionId}/load`, {
+    method: "POST",
+    headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
+  });
 }
 
-export function loadKnowledgeFile(documentId: string, versionId: string, fileId: string): Promise<ParsedKnowledgeFile> {
-  return apiFetch<ParsedKnowledgeFile>(`/api/v1/knowledge/${documentId}/versions/${versionId}/files/${fileId}/load`, { method: "POST" });
+export function loadKnowledgeFile(documentId: string, versionId: string, fileId: string, idempotencyKey?: string): Promise<ParsedKnowledgeFile> {
+  return apiFetch<ParsedKnowledgeFile>(`/api/v1/knowledge/${documentId}/versions/${versionId}/files/${fileId}/load`, {
+    method: "POST",
+    headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
+  });
 }
 
 export function listLoadedFiles(documentId: string, versionId: string): Promise<LoadKnowledgeDocumentResult> {
@@ -178,16 +206,22 @@ export function getAssetPreviewUrl(assetId: string): Promise<AssetPreviewUrlResu
   return apiFetch<AssetPreviewUrlResult>(`/api/v1/knowledge/assets/${assetId}/preview-url`);
 }
 
-export function chunkKnowledgeDocument(documentId: string, versionId: string): Promise<KnowledgeChunkListResult> {
-  return apiFetch<KnowledgeChunkListResult>(`/api/v1/knowledge/${documentId}/versions/${versionId}/chunks`, { method: "POST" });
+export function chunkKnowledgeDocument(documentId: string, versionId: string, idempotencyKey?: string): Promise<KnowledgeChunkListResult> {
+  return apiFetch<KnowledgeChunkListResult>(`/api/v1/knowledge/${documentId}/versions/${versionId}/chunks`, {
+    method: "POST",
+    headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
+  });
 }
 
 export function listKnowledgeChunks(documentId: string, versionId: string): Promise<KnowledgeChunkListResult> {
   return apiFetch<KnowledgeChunkListResult>(`/api/v1/knowledge/${documentId}/versions/${versionId}/chunks`);
 }
 
-export function embedKnowledgeChunks(documentId: string, versionId: string): Promise<KnowledgeEmbeddingSummary> {
-  return apiFetch<KnowledgeEmbeddingSummary>(`/api/v1/knowledge/${documentId}/versions/${versionId}/embeddings`, { method: "POST" });
+export function embedKnowledgeChunks(documentId: string, versionId: string, idempotencyKey?: string): Promise<KnowledgeEmbeddingSummary> {
+  return apiFetch<KnowledgeEmbeddingSummary>(`/api/v1/knowledge/${documentId}/versions/${versionId}/embeddings`, {
+    method: "POST",
+    headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
+  });
 }
 
 export function listKnowledgeEmbeddings(documentId: string, versionId: string): Promise<KnowledgeEmbeddingSummary> {

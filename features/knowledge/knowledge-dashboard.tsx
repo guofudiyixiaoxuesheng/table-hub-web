@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { CloudUploadOutlined, DeleteOutlined, EyeOutlined, FilePdfOutlined } from "@ant-design/icons";
-import { Button, Card, Empty, Modal, Progress, Space, Table, Tag, Tooltip, Typography, Upload, message } from "antd";
+import { CloudUploadOutlined, DeleteOutlined, EyeOutlined, FilePdfOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
+import { Button, Card, Empty, Input, Modal, Progress, Select, Space, Table, Tag, Tooltip, Typography, Upload, message } from "antd";
 import { deleteKnowledgeDocument, listKnowledgeDocuments } from "@/lib/oss/knowledge-resource-api";
-import { KNOWLEDGE_RESOURCE_OPTIONS, SCRIPT_GENRE_OPTIONS, type KnowledgeDocumentListItem } from "@/lib/oss/knowledge-resource-types";
+import { KNOWLEDGE_RESOURCE_OPTIONS, SCRIPT_GENRE_OPTIONS, type KnowledgeDocumentListItem, type KnowledgeResourceType } from "@/lib/oss/knowledge-resource-types";
 import styles from "./knowledge-dashboard.module.css";
 
 const resourceLabels = new Map(KNOWLEDGE_RESOURCE_OPTIONS.map((item) => [item.value, item.label]));
@@ -35,18 +35,38 @@ export function KnowledgeDashboard() {
   const [rows, setRows] = useState<KnowledgeDocumentListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [keyword, setKeyword] = useState("");
+  const [resourceType, setResourceType] = useState<KnowledgeResourceType | undefined>();
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [total, setTotal] = useState(0);
   const [messageApi, contextHolder] = message.useMessage();
   const [modalApi, modalContextHolder] = Modal.useModal();
   const totalFiles = useMemo(() => rows.reduce((sum, item) => sum + item.fileCount, 0), [rows]);
   const readyCount = useMemo(() => rows.filter((item) => item.activeVersionId).length, [rows]);
   const readyPercent = rows.length ? Math.round((readyCount / rows.length) * 100) : 0;
 
+  const loadDocuments = useCallback(async () => {
+    setLoading(true);
+    try {
+      const result = await listKnowledgeDocuments({
+        keyword,
+        resourceType,
+        page,
+        pageSize,
+      });
+      setRows(result.items);
+      setTotal(result.meta.total);
+    } catch (error) {
+      messageApi.error(error instanceof Error ? error.message : "知识库资源加载失败");
+    } finally {
+      setLoading(false);
+    }
+  }, [keyword, messageApi, page, pageSize, resourceType]);
+
   useEffect(() => {
-    listKnowledgeDocuments()
-      .then(setRows)
-      .catch((error) => messageApi.error(error instanceof Error ? error.message : "知识库资源加载失败"))
-      .finally(() => setLoading(false));
-  }, [messageApi]);
+    void loadDocuments();
+  }, [loadDocuments]);
 
   const confirmDelete = (record: KnowledgeDocumentListItem) => {
     modalApi.confirm({
@@ -60,6 +80,7 @@ export function KnowledgeDashboard() {
         try {
           await deleteKnowledgeDocument(record.id);
           setRows((current) => current.filter((item) => item.id !== record.id));
+          setTotal((current) => Math.max(current - 1, 0));
           messageApi.success("知识库资源已删除");
         } finally {
           setDeletingId(null);
@@ -91,11 +112,51 @@ export function KnowledgeDashboard() {
           <Typography.Text type="secondary">上传后将自动检测重复与新版本</Typography.Text>
         </Upload.Dragger>
       </Card>
-      <Card className="surface-card span-12" title="全部知识资源">
+      <Card
+        className="surface-card span-12"
+        title="全部知识资源"
+        extra={
+          <Space wrap>
+            <Input
+              allowClear
+              prefix={<SearchOutlined />}
+              placeholder="搜索名称、描述、标签"
+              value={keyword}
+              onChange={(event) => {
+                setKeyword(event.target.value);
+                setPage(1);
+              }}
+              className={styles.searchInput}
+            />
+            <Select
+              allowClear
+              placeholder="资源类型"
+              value={resourceType}
+              onChange={(value) => {
+                setResourceType(value);
+                setPage(1);
+              }}
+              options={[...KNOWLEDGE_RESOURCE_OPTIONS]}
+              className={styles.typeSelect}
+            />
+            <Button icon={<ReloadOutlined />} onClick={() => void loadDocuments()}>刷新</Button>
+          </Space>
+        }
+      >
         <Table
           rowKey="id"
           tableLayout="fixed"
-          pagination={false}
+          pagination={{
+            current: page,
+            pageSize,
+            total,
+            showSizeChanger: true,
+            showTotal: (value) => `共 ${value} 条`,
+            onChange: (nextPage, nextPageSize) => {
+              setPage(nextPage);
+              setPageSize(nextPageSize);
+            },
+          }}
           className={styles.resourceTable}
           scroll={{ x: 1060 }}
           loading={loading}

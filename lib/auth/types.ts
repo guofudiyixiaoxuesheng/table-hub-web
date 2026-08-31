@@ -21,4 +21,5 @@ export type ApiEnvelope<T> = {
   code: string;
   message: string;
   data: T;
+  meta?: Record<string, unknown>;
 };
