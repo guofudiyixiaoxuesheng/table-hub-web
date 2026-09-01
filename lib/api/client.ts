@@ -7,6 +7,24 @@ export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
     : `${window.location.protocol}//${window.location.hostname}:8000`);
 
 let refreshRequest: Promise<AuthSession> | null = null;
+const DEFAULT_TIMEOUT_MS = 12000;
+
+export async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  options: RequestInit = {},
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+): Promise<Response> {
+  if (options.signal) return fetch(input, options);
+  const controller = new AbortController();
+  const setTimer = typeof window === "undefined" ? globalThis.setTimeout : window.setTimeout;
+  const clearTimer = typeof window === "undefined" ? globalThis.clearTimeout : window.clearTimeout;
+  const timer = setTimer(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...options, signal: controller.signal });
+  } finally {
+    clearTimer(timer);
+  }
+}
 
 async function parseEnvelope<T>(response: Response): Promise<T> {
   const body = (await response.json().catch(() => null)) as ApiEnvelope<T> | null;
@@ -23,7 +41,7 @@ async function parseFullEnvelope<T>(response: Response): Promise<ApiEnvelope<T>>
 
 export async function refreshSession(): Promise<AuthSession> {
   if (!refreshRequest) {
-    refreshRequest = fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
+    refreshRequest = fetchWithTimeout(`${API_BASE_URL}/api/v1/auth/refresh`, {
       method: "POST",
       credentials: "include",
     })
@@ -48,7 +66,7 @@ export async function apiFetch<T>(
   const headers = new Headers(options.headers);
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetchWithTimeout(`${API_BASE_URL}${path}`, {
     ...options,
     credentials: "include",
     headers,
@@ -74,7 +92,7 @@ export async function apiFetchEnvelope<T>(
   const headers = new Headers(options.headers);
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetchWithTimeout(`${API_BASE_URL}${path}`, {
     ...options,
     credentials: "include",
     headers,

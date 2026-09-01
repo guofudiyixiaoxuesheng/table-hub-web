@@ -17,6 +17,7 @@ import {
 import { Button, Card, Col, Collapse, Descriptions, Drawer, Empty, Image, Input, Modal, Progress, Row, Select, Space, Statistic, Table, Tabs, Tag, Timeline, Tooltip, Typography, message } from "antd";
 import { chunkKnowledgeDocument, embedKnowledgeChunks, getAssetPreviewUrl, getKnowledgeManifest, getLoadedMarkdown, listKnowledgeChunks, listKnowledgeDocuments, listKnowledgeEmbeddings, listLoadedFiles, loadKnowledgeDocument, loadKnowledgeFile, retrieveKnowledgeChunks } from "@/lib/oss/knowledge-resource-api";
 import { useIdempotencyKey } from "@/lib/hooks/use-idempotency-key";
+import { createClientId } from "@/lib/utils/create-client-id";
 import {
   KNOWLEDGE_RESOURCE_OPTIONS,
   SCRIPT_GENRE_OPTIONS,
@@ -284,7 +285,7 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
     if (!document?.activeVersionId) return;
     setReloadingFileId(record.fileId);
     try {
-      const result = await loadKnowledgeFile(document.id, document.activeVersionId, record.fileId, crypto.randomUUID());
+      const result = await loadKnowledgeFile(document.id, document.activeVersionId, record.fileId, createClientId());
       setParsedFiles((current) => {
         const others = current.filter((item) => item.fileId !== result.fileId);
         return [...others, result];

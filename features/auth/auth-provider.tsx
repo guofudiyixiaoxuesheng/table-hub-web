@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { isPublicPath } from "@/config/access";
-import { API_BASE_URL, refreshSession } from "@/lib/api/client";
+import { API_BASE_URL, fetchWithTimeout, refreshSession } from "@/lib/api/client";
 import { apiFetch } from "@/lib/api/client";
 import { setAccessToken } from "@/lib/auth/token-store";
 import type { ApiEnvelope, AuthSession, AuthUser } from "@/lib/auth/types";
@@ -65,7 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user,
     loading,
     login: async (phone, password) => {
-      const response = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/v1/auth/login`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -76,7 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(session.user);
     },
     register: async (values) => {
-      const response = await fetch(`${API_BASE_URL}/api/v1/auth/register`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/v1/auth/register`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -97,7 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       router.replace("/login");
     },
     logout: async () => {
-      await fetch(`${API_BASE_URL}/api/v1/auth/logout`, {
+      await fetchWithTimeout(`${API_BASE_URL}/api/v1/auth/logout`, {
         method: "POST",
         credentials: "include",
       });

@@ -2,7 +2,7 @@ import type { AppRole } from "@/lib/auth/types";
 
 const FULL_ACCESS_ROLES = new Set<AppRole>(["admin", "manager"]);
 const BASIC_ROUTE_PREFIXES = ["/chat", "/sessions", "/me"];
-const PUBLIC_ROUTE_PREFIXES = ["/chat", "/sessions"];
+const PUBLIC_ROUTE_PREFIXES = ["/chat", "/sessions", "/p"];
 
 function matchesPrefix(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);

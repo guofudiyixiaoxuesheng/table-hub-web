@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import type { DependencyList } from "react";
+import { createClientId } from "@/lib/utils/create-client-id";
 
 function createIdempotencyKey() {
-  return crypto.randomUUID();
+  return createClientId();
 }
 
 /**

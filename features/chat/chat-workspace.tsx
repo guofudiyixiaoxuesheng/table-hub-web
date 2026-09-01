@@ -252,7 +252,11 @@ export function ChatWorkspace() {
                     </div>
                   </div>
                   <Space wrap className={styles.quickQuestions}>
-                    {quickQuestions.map((question) => <Button key={question} onClick={() => setInputValue(question)}>{question}</Button>)}
+                    {quickQuestions.map((question) => (
+                      <Button key={question} onClick={() => void submitMessage(question)}>
+                        {question}
+                      </Button>
+                    ))}
                   </Space>
                   <p className={styles.welcomeTips}>Tips：可以直接问“捉小三 DM 开本流程是什么”，我会先识别场景，再走对应的 RAG 子图。</p>
                 </div>

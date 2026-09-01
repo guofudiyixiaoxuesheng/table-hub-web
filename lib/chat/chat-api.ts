@@ -1,5 +1,6 @@
-import { API_BASE_URL, apiFetch, refreshSession } from "@/lib/api/client";
+import { API_BASE_URL, apiFetch, fetchWithTimeout, refreshSession } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/token-store";
+import { createClientId } from "@/lib/utils/create-client-id";
 
 export type ChatMessage = {
   role: "user" | "assistant" | "system" | "tool";
@@ -53,7 +54,7 @@ export function getGuestId() {
   if (typeof window === "undefined") return null;
   const existing = window.localStorage.getItem(GUEST_ID_KEY);
   if (existing) return existing;
-  const next = `guest-${crypto.randomUUID()}`;
+  const next = createClientId("guest-");
   window.localStorage.setItem(GUEST_ID_KEY, next);
   return next;
 }
@@ -97,7 +98,7 @@ export async function streamChatMessage(
   const token = getAccessToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
-  const response = await fetch(`${API_BASE_URL}/api/v1/chat/stream`, {
+  const response = await fetchWithTimeout(`${API_BASE_URL}/api/v1/chat/stream`, {
     method: "POST",
     credentials: "include",
     headers,
@@ -107,7 +108,7 @@ export async function streamChatMessage(
       message,
       streamMode: options.streamMode ?? "updates",
     }),
-  });
+  }, 20000);
   if (response.status === 401 && retry) {
     await refreshSession();
     return streamChatMessage(message, options, false);

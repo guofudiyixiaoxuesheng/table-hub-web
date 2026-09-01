@@ -1,7 +1,8 @@
 "use client";
 
-import { BellOutlined, LoginOutlined, MenuOutlined } from "@ant-design/icons";
+import { BellOutlined, EyeOutlined, LoginOutlined, MenuOutlined } from "@ant-design/icons";
 import { Avatar, Badge, Button, Dropdown, Space } from "antd";
+import Link from "next/link";
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/features/auth/auth-provider";
@@ -24,6 +25,9 @@ export function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
         <small>{user ? `${displayName} · ${user.role}` : "登录后可预约、保存记录并查看个人信息"}</small>
       </div>
       <Space size={16}>
+        <Link href="/p" target="_blank">
+          <Button icon={<EyeOutlined />}>玩家端预览</Button>
+        </Link>
         {user ? (
           <>
             <Badge dot offset={[-3, 4]}>
