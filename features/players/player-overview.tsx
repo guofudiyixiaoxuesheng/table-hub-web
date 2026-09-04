@@ -1,12 +1,33 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { DeleteOutlined, EditOutlined, PlusOutlined, SearchOutlined, TeamOutlined, UserAddOutlined } from "@ant-design/icons";
-import { Avatar, Button, Card, Form, Input, Modal, Space, Statistic, Table, Tag, message } from "antd";
-import { createPlayer, deletePlayer, listPlayers, updatePlayer, type StorePlayer, type StorePlayerPayload } from "@/lib/players/player-api";
+import { BarChartOutlined, DeleteOutlined, EditOutlined, PlusOutlined, SearchOutlined, TeamOutlined, UserAddOutlined } from "@ant-design/icons";
+import { Avatar, Button, Card, Descriptions, Drawer, Form, Input, List, Modal, Space, Statistic, Table, Tag, Typography, message } from "antd";
+import {
+  createPlayer,
+  deletePlayer,
+  getPlayerBehavior,
+  listPlayers,
+  updatePlayer,
+  type PlayerBehaviorSummary,
+  type StorePlayer,
+  type StorePlayerPayload,
+} from "@/lib/players/player-api";
+import { SCRIPT_GENRE_OPTIONS } from "@/lib/oss/knowledge-resource-types";
+
+const scriptGenreLabelMap = new Map(SCRIPT_GENRE_OPTIONS.map((item) => [item.value, item.label]));
+
+function formatScriptGenre(value?: string | null) {
+  if (!value) return "未分类";
+  return scriptGenreLabelMap.get(value as never) ?? value;
+}
 
 function formatTime(value: string) {
   return new Date(value).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+function formatMoney(priceCents: number) {
+  return `¥${(priceCents / 100).toFixed(0)}`;
 }
 
 export function PlayerOverview() {
@@ -18,6 +39,9 @@ export function PlayerOverview() {
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<StorePlayer | null>(null);
+  const [behavior, setBehavior] = useState<PlayerBehaviorSummary | null>(null);
+  const [behaviorOpen, setBehaviorOpen] = useState(false);
+  const [behaviorLoading, setBehaviorLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form] = Form.useForm<StorePlayerPayload & { confirmPassword?: string }>();
   const [messageApi, contextHolder] = message.useMessage();
@@ -38,7 +62,10 @@ export function PlayerOverview() {
   }, [keyword, messageApi, page, pageSize]);
 
   useEffect(() => {
-    void load();
+    const timer = window.setTimeout(() => {
+      void load();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [load]);
 
   const openCreate = () => {
@@ -61,7 +88,8 @@ export function PlayerOverview() {
 
   const submit = async () => {
     const values = await form.validateFields();
-    const { confirmPassword: _, ...payload } = values;
+    const payload = { ...values };
+    delete payload.confirmPassword;
     setSaving(true);
     try {
       if (editing) {
@@ -92,6 +120,18 @@ export function PlayerOverview() {
         await load();
       },
     });
+  };
+
+  const openBehavior = async (record: StorePlayer) => {
+    setBehaviorOpen(true);
+    setBehaviorLoading(true);
+    try {
+      setBehavior(await getPlayerBehavior(record.id));
+    } catch (error) {
+      messageApi.error(error instanceof Error ? error.message : "玩家行为加载失败");
+    } finally {
+      setBehaviorLoading(false);
+    }
   };
 
   return (
@@ -150,7 +190,8 @@ export function PlayerOverview() {
               render: (_, record) => (
                 <Space size={4}>
                   <Button type="text" icon={<EditOutlined />} onClick={() => openEdit(record)}>编辑</Button>
-                  <Button type="text" danger icon={<DeleteOutlined />} onClick={() => remove(record)}>删除</Button>
+                  <Button type="text" icon={<BarChartOutlined />} onClick={() => void openBehavior(record)}>行为</Button>
+                  <Button icon={<DeleteOutlined />} onClick={() => remove(record)} className="danger-soft-button">删除</Button>
                 </Space>
               ),
             },
@@ -189,6 +230,56 @@ export function PlayerOverview() {
           <Form.Item name="notes" label="备注"><Input.TextArea rows={3} /></Form.Item>
         </Form>
       </Modal>
+
+      <Drawer
+        title="玩家行为详情"
+        open={behaviorOpen}
+        onClose={() => setBehaviorOpen(false)}
+        width={520}
+        loading={behaviorLoading}
+      >
+        {behavior ? (
+          <Space direction="vertical" size={18} style={{ width: "100%" }}>
+            <Card>
+              <Space>
+                <Avatar size={48} style={{ background: "#6d5dfc" }}>
+                  {(behavior.store_player.nickname || behavior.store_player.phone || "玩").slice(0, 1)}
+                </Avatar>
+                <div>
+                  <Typography.Title level={4} style={{ margin: 0 }}>{behavior.store_player.nickname || "未命名玩家"}</Typography.Title>
+                  <Typography.Text type="secondary">{behavior.store_player.phone || "暂无手机号"}</Typography.Text>
+                </div>
+              </Space>
+              <Typography.Paragraph style={{ marginTop: 16 }}>{behavior.ai_summary}</Typography.Paragraph>
+            </Card>
+            <Descriptions bordered column={2} size="small" items={[
+              { key: "reservation", label: "预约次数", children: behavior.reservation_count },
+              { key: "completed", label: "玩本次数", children: behavior.completed_count },
+              { key: "cancelled", label: "跳车/取消", children: behavior.cancelled_count },
+              { key: "rate", label: "取消率", children: `${Math.round(behavior.cancellation_rate * 100)}%` },
+              { key: "active", label: "有效预约", children: behavior.active_reservation_count },
+              { key: "spend", label: "消费估算", children: formatMoney(behavior.estimated_spend_cents) },
+            ]} />
+            <Card title="偏好类型">
+              {behavior.favorite_genres.length ? behavior.favorite_genres.map((item) => <Tag key={item}>{formatScriptGenre(item)}</Tag>) : "暂无明显偏好"}
+            </Card>
+            <Card title="最近约车记录">
+              <List
+                dataSource={behavior.recent_sessions}
+                locale={{ emptyText: "暂无约车记录" }}
+                renderItem={(item) => (
+                  <List.Item extra={<Tag color={item.join_status === "cancelled" ? "red" : "green"}>{item.join_status}</Tag>}>
+                    <List.Item.Meta
+                      title={`${item.title} · ${item.script_name}`}
+                      description={`${formatTime(item.start_time)} · ${formatMoney(item.price_cents)} · ${formatScriptGenre(item.script_genre)} · 预约码 ${item.reservation_code}`}
+                    />
+                  </List.Item>
+                )}
+              />
+            </Card>
+          </Space>
+        ) : null}
+      </Drawer>
     </div>
   );
 }

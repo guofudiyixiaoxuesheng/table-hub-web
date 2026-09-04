@@ -1,5 +1,7 @@
 import { apiFetch } from "@/lib/api/client";
 import type { GameSessionStatus } from "@/lib/game-sessions/game-session-api";
+import type { SessionPlayerStatus } from "@/lib/game-sessions/game-session-api";
+import type { GameSessionImageSource } from "@/lib/game-sessions/game-session-api";
 import type { KnowledgeDocumentListItem, ScriptGenre } from "@/lib/oss/knowledge-resource-types";
 
 export type PublicStore = {
@@ -34,6 +36,13 @@ export type PublicGameSession = {
   status: GameSessionStatus;
   description?: string | null;
   dmName?: string | null;
+  coverImageSource?: GameSessionImageSource | null;
+  coverImageUrl?: string | null;
+  detailImageSource?: GameSessionImageSource | null;
+  detailImageUrls?: string[];
+  myReservationId?: string | null;
+  myReservationStatus?: SessionPlayerStatus | null;
+  myReservationCode?: string | null;
 };
 
 export type PublicListParams = {
@@ -84,4 +93,12 @@ export function listPublicGameSessions(params: PublicListParams = {}) {
 
 export function getPublicGameSession(id: string, storeId?: string) {
   return apiFetch<PublicGameSession>(`/api/v1/game-sessions/${id}${buildSearch({ storeId })}`);
+}
+
+export function joinPublicGameSession(id: string) {
+  return apiFetch<PublicGameSession>(`/api/v1/game-sessions/${id}/join`, { method: "POST" });
+}
+
+export function cancelPublicGameSessionJoin(id: string) {
+  return apiFetch<PublicGameSession>(`/api/v1/game-sessions/${id}/join/cancel`, { method: "POST" });
 }

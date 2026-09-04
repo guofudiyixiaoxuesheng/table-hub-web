@@ -46,3 +46,7 @@ export function PasswordField({
     </Form.Item>
   );
 }
+
+export function SmsCodeField() {
+  return <Input placeholder="请输入短信验证码" inputMode="numeric" autoComplete="one-time-code" />;
+}

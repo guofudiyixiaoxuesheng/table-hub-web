@@ -6,7 +6,7 @@ import { useAuth } from "./auth-provider";
 import { PasswordField } from "./auth-form-fields";
 
 type Values = {
-  currentPassword: string;
+  currentPassword?: string;
   newPassword: string;
   confirmPassword: string;
 };
@@ -21,7 +21,8 @@ export function ChangePasswordModal({
   const [form] = Form.useForm<Values>();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { changePassword } = useAuth();
+  const { changePassword, user } = useAuth();
+  const hasPassword = Boolean(user?.hasPassword);
 
   const submit = async () => {
     try {
@@ -39,10 +40,12 @@ export function ChangePasswordModal({
   };
 
   return (
-    <Modal title="修改密码" open={open} onCancel={onClose} onOk={submit} confirmLoading={submitting} okText="确认修改" cancelText="取消" destroyOnHidden>
-      <Typography.Paragraph type="secondary">修改后其他已登录设备也会失效，需要重新登录。</Typography.Paragraph>
+    <Modal title={hasPassword ? "修改密码" : "设置密码"} open={open} onCancel={onClose} onOk={submit} confirmLoading={submitting} okText={hasPassword ? "确认修改" : "确认设置"} cancelText="取消" destroyOnHidden>
+      <Typography.Paragraph type="secondary">
+        {hasPassword ? "修改后其他已登录设备也会失效，需要重新登录。" : "当前账号还没有登录密码，直接设置新密码即可。"}
+      </Typography.Paragraph>
       <Form form={form} layout="vertical" requiredMark={false}>
-        <PasswordField name="currentPassword" label="当前密码" />
+        {hasPassword ? <PasswordField name="currentPassword" label="当前密码" /> : null}
         <PasswordField name="newPassword" label="新密码" autoComplete="new-password" />
         <Form.Item
           label="确认新密码"

@@ -8,6 +8,8 @@ import {
   UserOutlined,
 } from "@ant-design/icons";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { initCurrentStoreIdFromUrl } from "@/lib/store/current-store";
 import styles from "./player-mobile-shell.module.css";
 
 const navItems = [
@@ -20,11 +22,25 @@ const navItems = [
 
 export function PlayerMobileShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const [storeId, setStoreId] = useState<string | null>(null);
+  const hideBottomNav = /^\/p\/sessions\/[^/]+$/.test(pathname);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setStoreId(initCurrentStoreIdFromUrl(window.location.search));
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [pathname]);
+
+  const hrefWithStore = (href: string) => {
+    if (!storeId) return href;
+    return `${href}?storeId=${encodeURIComponent(storeId)}`;
+  };
 
   return (
     <main className={styles.shell}>
       <div className={styles.viewport}>{children}</div>
-      <nav className={styles.bottomNav} aria-label="玩家端底部导航">
+      {!hideBottomNav ? <nav className={styles.bottomNav} aria-label="玩家端底部导航">
         <div className={styles.bottomNavInner}>
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -32,7 +48,7 @@ export function PlayerMobileShell({ children }: { children: React.ReactNode }) {
             return (
               <a
                 className={`${styles.navItem} ${active ? styles.activeNavItem : ""}`}
-                href={item.href}
+                href={hrefWithStore(item.href)}
                 key={item.href}
               >
                 <Icon />
@@ -41,7 +57,7 @@ export function PlayerMobileShell({ children }: { children: React.ReactNode }) {
             );
           })}
         </div>
-      </nav>
+      </nav> : null}
     </main>
   );
 }

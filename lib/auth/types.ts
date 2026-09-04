@@ -8,6 +8,7 @@ export type AuthUser = {
   storeId: string | null;
   storeName: string | null;
   role: AppRole;
+  hasPassword: boolean;
 };
 
 export type AuthSession = {

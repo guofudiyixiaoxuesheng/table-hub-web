@@ -32,7 +32,7 @@ type MenuItem = Required<MenuProps>["items"][number];
 
 function toMenuItem(item: NavigationItem): MenuItem {
   return {
-    key: item.href,
+    key: item.key ?? item.href,
     icon: icons[item.icon],
     label: item.label,
     children: item.children?.map(toMenuItem),
@@ -46,17 +46,18 @@ export function SidebarNavigation({ onNavigate }: { onNavigate?: () => void }) {
   const items = getNavigationItems(user?.role ?? "guest");
   const flatItems = flattenItems(items);
   const selected = [...flatItems].sort((a, b) => b.href.length - a.href.length).find((item) => pathname.startsWith(item.href));
-  const openKeys = items.filter((item) => item.children?.some((child) => pathname.startsWith(child.href))).map((item) => item.href);
+  const openKeys = items.filter((item) => item.children?.some((child) => pathname.startsWith(child.href))).map((item) => item.key ?? item.href);
 
   return (
     <Menu
       mode="inline"
       theme="dark"
-      selectedKeys={[selected?.href ?? "/chat"]}
+      selectedKeys={[selected ? selected.key ?? selected.href : "/chat"]}
       defaultOpenKeys={openKeys}
       items={items.map(toMenuItem)}
       onClick={({ key }) => {
-        router.push(key);
+        const target = flatItems.find((item) => (item.key ?? item.href) === key);
+        router.push(target?.href ?? key);
         onNavigate?.();
       }}
     />

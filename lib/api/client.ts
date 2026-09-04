@@ -1,5 +1,6 @@
 import type { ApiEnvelope, AuthSession } from "@/lib/auth/types";
 import { getAccessToken, setAccessToken } from "@/lib/auth/token-store";
+import { appendCurrentStoreId } from "@/lib/store/current-store";
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
   ?? (typeof window === "undefined"
@@ -21,6 +22,11 @@ export async function fetchWithTimeout(
   const timer = setTimer(() => controller.abort(), timeoutMs);
   try {
     return await fetch(input, { ...options, signal: controller.signal });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error(`请求超时或被浏览器中断，请稍后重试（${Math.round(timeoutMs / 1000)} 秒）`);
+    }
+    throw error;
   } finally {
     clearTimer(timer);
   }
@@ -61,20 +67,22 @@ export async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
   retry = true,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
 ): Promise<T> {
   const token = getAccessToken();
   const headers = new Headers(options.headers);
   if (token) headers.set("Authorization", `Bearer ${token}`);
+  const requestPath = appendCurrentStoreId(path);
 
-  const response = await fetchWithTimeout(`${API_BASE_URL}${path}`, {
+  const response = await fetchWithTimeout(`${API_BASE_URL}${requestPath}`, {
     ...options,
     credentials: "include",
     headers,
-  });
+  }, timeoutMs);
   if (response.status === 401 && retry && path !== "/api/v1/auth/refresh") {
     try {
       await refreshSession();
-      return apiFetch<T>(path, options, false);
+      return apiFetch<T>(path, options, false, timeoutMs);
     } catch {
       setAccessToken(null);
       if (typeof window !== "undefined") window.dispatchEvent(new Event("tablehub:unauthorized"));
@@ -87,20 +95,22 @@ export async function apiFetchEnvelope<T>(
   path: string,
   options: RequestInit = {},
   retry = true,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
 ): Promise<ApiEnvelope<T>> {
   const token = getAccessToken();
   const headers = new Headers(options.headers);
   if (token) headers.set("Authorization", `Bearer ${token}`);
+  const requestPath = appendCurrentStoreId(path);
 
-  const response = await fetchWithTimeout(`${API_BASE_URL}${path}`, {
+  const response = await fetchWithTimeout(`${API_BASE_URL}${requestPath}`, {
     ...options,
     credentials: "include",
     headers,
-  });
+  }, timeoutMs);
   if (response.status === 401 && retry && path !== "/api/v1/auth/refresh") {
     try {
       await refreshSession();
-      return apiFetchEnvelope<T>(path, options, false);
+      return apiFetchEnvelope<T>(path, options, false, timeoutMs);
     } catch {
       setAccessToken(null);
       if (typeof window !== "undefined") window.dispatchEvent(new Event("tablehub:unauthorized"));

@@ -1,15 +1,42 @@
-.grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:20px; }
+.grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; }
 .toolbar { width:100%; justify-content:flex-end; }
 .toolbar :global(.ant-input-affix-wrapper) { width:260px; }
+.viewSwitch { margin-top:16px; }
 .dateInput { width:150px; }
 .filterSelect { width:130px; }
 .scriptSelect { width:210px; }
+.roomSelect { width:170px; }
 .card { overflow:hidden; }
-.cover { position:relative; min-height:180px; padding:22px; color:#fff; background:linear-gradient(145deg,#7465f3,#171725); }
-.cover :global(.ant-tag) { position:absolute; top:18px; right:16px; }
-.cover span { display:block; margin-top:65px; color:rgba(255,255,255,.7); font-size:12px; }
+.cover { position:relative; min-height:180px; overflow:hidden; padding:22px; color:#fff; background:linear-gradient(145deg,#7465f3,#171725); }
+.coverImage { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.coverMask { position:absolute; inset:0; background:linear-gradient(180deg,rgba(14,14,30,.18),rgba(14,14,30,.78)); }
+.coverContent { position:relative; z-index:1; }
+.cover :global(.ant-tag) { position:absolute; z-index:2; top:18px; right:16px; }
+.cover span { display:block; margin-top:65px; color:rgba(255,255,255,.78); font-size:12px; }
 .cover h3 { margin:5px 0 0; font-size:25px; }
 .body { padding:20px; }
 .formGrid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0 14px; }
-@media (max-width:1100px) { .grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-@media (max-width:640px) { .grid { grid-template-columns:1fr; } .toolbar { justify-content:flex-start; } .toolbar :global(.ant-input-affix-wrapper),.dateInput,.filterSelect,.scriptSelect { width:100%; } .formGrid { grid-template-columns:1fr; } }
+.imageFields { display:grid; gap:12px; margin:8px 0 18px; padding:16px; border:1px solid rgba(109,93,252,.14); border-radius:16px; background:rgba(109,93,252,.035); }
+.imageFields h5 { margin:0!important; }
+.coverPreview { max-width:240px; max-height:136px; object-fit:cover; border-radius:14px; }
+.detailPreview { width:88px; height:88px; object-fit:cover; border-radius:12px; }
+.detailHeroImage { width:100%; max-height:320px; object-fit:cover; border-radius:18px; }
+.detailImageList { display:grid; gap:14px; }
+.detailImageList img { width:100%; border-radius:16px; object-fit:cover; background:#f5f5fb; }
+.scheduleWrap { overflow:auto; padding-bottom:8px; }
+.scheduleGrid { display:grid; border:1px solid rgba(15,23,42,.08); border-radius:18px; overflow:hidden; background:#fff; }
+.scheduleCorner,.scheduleRoomHeader { position:sticky; top:0; z-index:3; min-height:58px; padding:12px 14px; background:#fafafa; border-bottom:1px solid rgba(15,23,42,.08); }
+.scheduleCorner { left:0; z-index:4; display:flex; align-items:center; color:#64748b; font-size:13px; border-right:1px solid rgba(15,23,42,.08); }
+.scheduleRoomHeader { display:flex; flex-direction:column; gap:2px; border-right:1px solid rgba(15,23,42,.08); }
+.scheduleTimes { position:sticky; left:0; z-index:2; background:#fff; border-right:1px solid rgba(15,23,42,.08); }
+.scheduleTime { padding:8px 10px; color:#94a3b8; font-size:12px; border-bottom:1px solid rgba(15,23,42,.06); }
+.scheduleRoomColumn { position:relative; border-right:1px solid rgba(15,23,42,.08); background:linear-gradient(180deg,#fff,#fbfbff); }
+.scheduleHourLine { position:absolute; left:0; right:0; border-top:1px solid rgba(15,23,42,.06); }
+.scheduleBlock { position:absolute; left:10px; right:10px; display:flex; flex-direction:column; gap:3px; padding:10px 12px; border:1px solid rgba(109,93,252,.18); border-radius:14px; background:linear-gradient(135deg,rgba(109,93,252,.12),rgba(255,193,7,.1)); color:#1f2937; box-shadow:0 10px 24px rgba(31,41,55,.08); overflow:hidden; text-decoration:none; }
+.scheduleBlock span { color:#6d5dfc; font-size:12px; font-weight:700; }
+.scheduleBlock strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; }
+.scheduleBlock em { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#64748b; font-size:12px; font-style:normal; }
+.roomToolbar { display:flex; justify-content:space-between; gap:12px; margin-bottom:12px; }
+.roomName { display:flex; flex-direction:column; gap:2px; }
+@media (max-width:1100px) { .grid { grid-template-columns:1fr; } }
+@media (max-width:640px) { .grid { grid-template-columns:1fr; } .toolbar { justify-content:flex-start; } .toolbar :global(.ant-input-affix-wrapper),.dateInput,.filterSelect,.scriptSelect,.roomSelect { width:100%; } .formGrid { grid-template-columns:1fr; } .roomToolbar { flex-direction:column; } }

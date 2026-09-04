@@ -1,5 +1,6 @@
 import { API_BASE_URL, apiFetch, fetchWithTimeout, refreshSession } from "@/lib/api/client";
 import { getAccessToken } from "@/lib/auth/token-store";
+import { getCurrentStoreId } from "@/lib/store/current-store";
 import { createClientId } from "@/lib/utils/create-client-id";
 
 export type ChatMessage = {
@@ -69,7 +70,7 @@ export function sendChatMessage(message: string, threadId?: string | null, guest
   return apiFetch<ChatResponse>("/api/v1/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ threadId, guestId, message }),
+    body: JSON.stringify({ threadId, guestId, storeId: getCurrentStoreId(), message }),
   });
 }
 
@@ -105,6 +106,7 @@ export async function streamChatMessage(
     body: JSON.stringify({
       threadId: options.threadId,
       guestId: options.guestId,
+      storeId: getCurrentStoreId(),
       message,
       streamMode: options.streamMode ?? "updates",
     }),

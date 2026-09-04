@@ -5,3 +5,15 @@
 .folderName small { color:var(--muted); font-size:11px; font-weight:400; }
 .folderName strong { overflow:hidden; margin-top:3px; color:var(--foreground); font-size:14px; text-overflow:ellipsis; white-space:nowrap; }
 .safeIcon { margin-right:7px; color:#3d9b86; }
+.labelHint { font-size:12px; font-weight:400; }
+.uploadForm :global(.ant-input),
+.uploadForm :global(.ant-select-selector) { min-height:40px; }
+.uploadForm :global(.ant-select-single) { height:40px; }
+.uploadForm :global(.ant-select-single .ant-select-selector) { align-items:center; }
+.uploadModalHeader { width:100%; align-items:flex-start; }
+.uploadModalIcon { flex:0 0 auto; margin-top:2px; color:var(--brand); font-size:28px; }
+.uploadModalHint { display:block; font-size:12px; line-height:1.7; }
+
+@media (max-width: 575px) {
+  .uploadModalIcon { font-size:24px; }
+}

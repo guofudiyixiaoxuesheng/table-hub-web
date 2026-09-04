@@ -12,6 +12,10 @@
 .formCard { width:min(100%,420px); }
 .formCard :global(.ant-typography) { margin-top:0; }
 .formMeta { display:flex; align-items:center; justify-content:space-between; margin:-6px 0 22px; }
+.codeFormItem { margin-bottom:22px; }
+.codeRow { display:flex; align-items:center; gap:10px; }
+.codeRow :global(.ant-input-affix-wrapper), .codeRow :global(.ant-input) { flex:1; }
+.codeRow :global(.ant-btn) { height:40px; flex:0 0 112px; }
 .help { margin-top:24px; color:#9295a4; font-size:12px; text-align:center; }
 .error { margin:-8px 0 16px !important; }
 .mobileBrand { display:none; }

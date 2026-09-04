@@ -2,6 +2,7 @@ import type { AppRole } from "@/lib/auth/types";
 import { hasFullAccess } from "./access";
 
 export type NavigationItem = {
+  key?: string;
   href: string;
   label: string;
   icon: "chat" | "knowledge" | "users" | "customers" | "players" | "sessions" | "me";
@@ -11,7 +12,17 @@ export type NavigationItem = {
 
 export const navigationItems: NavigationItem[] = [
   { href: "/chat", label: "AI 对话", icon: "chat" },
-  { href: "/knowledge", label: "知识库", icon: "knowledge", management: true },
+  {
+    key: "knowledge",
+    href: "/knowledge",
+    label: "知识库",
+    icon: "knowledge",
+    management: true,
+    children: [
+      { href: "/knowledge", label: "知识资源", icon: "knowledge", management: true },
+      { href: "/knowledge/evaluations", label: "效果评估", icon: "knowledge", management: true },
+    ],
+  },
   {
     href: "/users",
     label: "用户中心",

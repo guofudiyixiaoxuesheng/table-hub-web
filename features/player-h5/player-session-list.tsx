@@ -33,9 +33,9 @@ export function PlayerSessionList() {
   return (
     <>
       <section className={styles.hero}>
-        <p className={styles.storeLabel}>拼车场次</p>
-        <h1>看看哪一车还缺人</h1>
-        <p className={styles.heroText}>先展示可报名场次，下一步可以接手机号登录后预约并生成 6 位预约码。</p>
+        <p className={styles.storeLabel}>活动组局</p>
+        <h1>今天想上哪一车？</h1>
+        <p className={styles.heroText}>按剧本资料和门店场次展示可拼车活动，选好后登录即可预约并生成核验码。</p>
       </section>
       <div className={styles.filterRow}>
         <Input.Search allowClear placeholder="搜索剧本/场次" value={keyword} onChange={(event) => setKeyword(event.target.value)} />

@@ -18,9 +18,16 @@ import type {
   LoadKnowledgeDocumentResult,
   ParsedKnowledgeFile,
   ParsedMarkdownResult,
+  ScriptGenreOption,
 } from "./knowledge-resource-types";
 import { createClientFileId, toManifestFile, type BrowserFolderFile } from "./knowledge-resource-manifest";
 import { apiFetch, apiFetchEnvelope } from "@/lib/api/client";
+
+const UPLOAD_API_TIMEOUT_MS = 120_000;
+const KNOWLEDGE_PARSE_TIMEOUT_MS = 300_000;
+const KNOWLEDGE_CHUNK_TIMEOUT_MS = 120_000;
+const KNOWLEDGE_EMBEDDING_TIMEOUT_MS = 300_000;
+const KNOWLEDGE_RETRIEVE_TIMEOUT_MS = 60_000;
 
 export async function uploadKnowledgeResource(
   payload: Omit<CreateKnowledgeResourcePayload, "files">,
@@ -55,7 +62,7 @@ export async function initiateKnowledgeUpload(
     method: "POST",
     headers: { "Content-Type": "application/json", ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}) },
     body: JSON.stringify({ ...payload, files }),
-  });
+  }, true, UPLOAD_API_TIMEOUT_MS);
   return { initiate, manifestFiles: files };
 }
 
@@ -147,7 +154,7 @@ export function completeKnowledgeUpload(uploadId: string, completed: CompletedUp
     method: "POST",
     headers: { "Content-Type": "application/json", ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}) },
     body: JSON.stringify({ files: completed }),
-  });
+  }, true, UPLOAD_API_TIMEOUT_MS);
 }
 
 export async function listKnowledgeDocuments(params: ListKnowledgeDocumentsParams = {}): Promise<KnowledgeDocumentListResult> {
@@ -172,6 +179,10 @@ export async function listKnowledgeDocuments(params: ListKnowledgeDocumentsParam
   };
 }
 
+export async function listScriptGenres(): Promise<ScriptGenreOption[]> {
+  return apiFetch<ScriptGenreOption[]>("/api/v1/knowledge/script-genres");
+}
+
 export function getKnowledgeManifest(documentId: string, versionId: string): Promise<KnowledgeDocumentManifest> {
   return apiFetch<KnowledgeDocumentManifest>(`/api/v1/knowledge/${documentId}/versions/${versionId}/manifest`);
 }
@@ -184,18 +195,30 @@ export function loadKnowledgeDocument(documentId: string, versionId: string, ide
   return apiFetch<LoadKnowledgeDocumentResult>(`/api/v1/knowledge/${documentId}/versions/${versionId}/load`, {
     method: "POST",
     headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
-  });
+  }, true, KNOWLEDGE_PARSE_TIMEOUT_MS);
 }
 
 export function loadKnowledgeFile(documentId: string, versionId: string, fileId: string, idempotencyKey?: string): Promise<ParsedKnowledgeFile> {
   return apiFetch<ParsedKnowledgeFile>(`/api/v1/knowledge/${documentId}/versions/${versionId}/files/${fileId}/load`, {
     method: "POST",
     headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
-  });
+  }, true, KNOWLEDGE_PARSE_TIMEOUT_MS);
 }
 
 export function listLoadedFiles(documentId: string, versionId: string): Promise<LoadKnowledgeDocumentResult> {
   return apiFetch<LoadKnowledgeDocumentResult>(`/api/v1/knowledge/${documentId}/versions/${versionId}/loaded-files`);
+}
+
+export function deleteKnowledgeFile(documentId: string, versionId: string, fileId: string): Promise<LoadKnowledgeDocumentResult> {
+  return apiFetch<LoadKnowledgeDocumentResult>(`/api/v1/knowledge/${documentId}/versions/${versionId}/files/${fileId}`, { method: "DELETE" });
+}
+
+export function saveManualParsedText(documentId: string, versionId: string, fileId: string, text: string): Promise<ParsedKnowledgeFile> {
+  return apiFetch<ParsedKnowledgeFile>(`/api/v1/knowledge/${documentId}/versions/${versionId}/files/${fileId}/manual-text`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  }, true, KNOWLEDGE_PARSE_TIMEOUT_MS);
 }
 
 export function getLoadedMarkdown(documentId: string, versionId: string, parsedFileId: string): Promise<ParsedMarkdownResult> {
@@ -210,7 +233,7 @@ export function chunkKnowledgeDocument(documentId: string, versionId: string, id
   return apiFetch<KnowledgeChunkListResult>(`/api/v1/knowledge/${documentId}/versions/${versionId}/chunks`, {
     method: "POST",
     headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
-  });
+  }, true, KNOWLEDGE_CHUNK_TIMEOUT_MS);
 }
 
 export function listKnowledgeChunks(documentId: string, versionId: string): Promise<KnowledgeChunkListResult> {
@@ -221,7 +244,7 @@ export function embedKnowledgeChunks(documentId: string, versionId: string, idem
   return apiFetch<KnowledgeEmbeddingSummary>(`/api/v1/knowledge/${documentId}/versions/${versionId}/embeddings`, {
     method: "POST",
     headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
-  });
+  }, true, KNOWLEDGE_EMBEDDING_TIMEOUT_MS);
 }
 
 export function listKnowledgeEmbeddings(documentId: string, versionId: string): Promise<KnowledgeEmbeddingSummary> {
@@ -233,5 +256,5 @@ export function retrieveKnowledgeChunks(documentId: string, versionId: string, p
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
-  });
+  }, true, KNOWLEDGE_RETRIEVE_TIMEOUT_MS);
 }

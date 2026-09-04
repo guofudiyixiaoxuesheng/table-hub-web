@@ -8,6 +8,8 @@ export const KNOWLEDGE_RESOURCE_OPTIONS = [
 
 export const SCRIPT_GENRE_OPTIONS = [
   { label: "推理本/硬核本", value: "mystery_hardcore" },
+  { label: "本格本", value: "honkaku" },
+  { label: "变格本", value: "henkaku" },
   { label: "还原本", value: "restoration" },
   { label: "情感本", value: "emotional" },
   { label: "机制本", value: "mechanism" },
@@ -17,7 +19,18 @@ export const SCRIPT_GENRE_OPTIONS = [
 ] as const;
 
 export type KnowledgeResourceType = (typeof KNOWLEDGE_RESOURCE_OPTIONS)[number]["value"];
-export type ScriptGenre = (typeof SCRIPT_GENRE_OPTIONS)[number]["value"];
+export type ScriptGenre = string;
+
+export type ScriptGenreOption = {
+  id: string;
+  value: string;
+  label: string;
+  description?: string | null;
+  sortOrder: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
 
 export type KnowledgeResourceFile = {
   clientFileId: string;
@@ -88,6 +101,9 @@ export type KnowledgeDocumentListItem = {
   fileCount: number;
   totalSize: number;
   updatedAt: string;
+  aiStatus?: "not_ready" | "processing" | "ready" | "partial_error";
+  aiStatusText?: string;
+  pipelinePercent?: number;
 };
 
 export type KnowledgeDocumentListMeta = {
@@ -132,11 +148,11 @@ export type KnowledgeDocumentManifest = {
 };
 
 export type ParsedKnowledgeFile = {
-  id: string;
+  id?: string | null;
   fileId: string;
   relativePath: string;
   loaderType: string;
-  status: "pending" | "processing" | "ready" | "failed";
+  status: "not_loaded" | "pending" | "processing" | "ready" | "skipped" | "failed";
   markdownKey?: string | null;
   textSha256?: string | null;
   charCount: number;

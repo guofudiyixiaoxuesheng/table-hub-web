@@ -6,18 +6,22 @@ import { ArrowLeftOutlined, CalendarOutlined, ClockCircleOutlined, DeleteOutline
 import { Avatar, Button, Card, Descriptions, Empty, Form, Input, InputNumber, List, Modal, Progress, Select, Space, Tag, Typography, message } from "antd";
 import {
   addSessionPlayer,
+  cancelGameSession,
   deleteSessionPlayer,
   getGameSession,
   listDmOptions,
+  listRooms,
   listScriptOptions,
   updateGameSession,
   type DmOption,
   type GameSessionDetail,
   type GameSessionPayload,
+  type Room,
   type ScriptOption,
   type SessionPlayerPayload,
 } from "@/lib/game-sessions/game-session-api";
 import { createPlayer, listPlayers, type StorePlayer } from "@/lib/players/player-api";
+import { SessionImageFields } from "./session-image-fields";
 import styles from "./sessions.module.css";
 
 const statusLabels: Record<string, string> = {
@@ -47,6 +51,7 @@ export function SessionDetail({ sessionId }: { sessionId: string }) {
   const [session, setSession] = useState<GameSessionDetail | null>(null);
   const [scriptOptions, setScriptOptions] = useState<ScriptOption[]>([]);
   const [dmOptions, setDmOptions] = useState<DmOption[]>([]);
+  const [roomOptions, setRoomOptions] = useState<Room[]>([]);
   const [playerOptions, setPlayerOptions] = useState<StorePlayer[]>([]);
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
@@ -71,9 +76,10 @@ export function SessionDetail({ sessionId }: { sessionId: string }) {
 
   const loadOptions = useCallback(async () => {
     try {
-      const [scripts, dms, players] = await Promise.all([listScriptOptions(), listDmOptions(), listPlayers({ pageSize: 100 })]);
+      const [scripts, dms, rooms, players] = await Promise.all([listScriptOptions(), listDmOptions(), listRooms(), listPlayers({ pageSize: 100 })]);
       setScriptOptions(scripts);
       setDmOptions(dms);
+      setRoomOptions(rooms);
       setPlayerOptions(players.items);
     } catch (error) {
       messageApi.warning(error instanceof Error ? error.message : "选项加载失败");
@@ -81,8 +87,11 @@ export function SessionDetail({ sessionId }: { sessionId: string }) {
   }, [messageApi]);
 
   useEffect(() => {
-    void loadDetail();
-    void loadOptions();
+    const timer = window.setTimeout(() => {
+      void loadDetail();
+      void loadOptions();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [loadDetail, loadOptions]);
 
   const openEdit = () => {
@@ -90,6 +99,7 @@ export function SessionDetail({ sessionId }: { sessionId: string }) {
     sessionForm.setFieldsValue({
       scriptDocumentId: session.scriptDocumentId,
       dmUserId: session.dmUserId,
+      roomId: session.roomId,
       title: session.title,
       scriptName: session.scriptName,
       startTime: toLocalInput(session.startTime),
@@ -100,6 +110,12 @@ export function SessionDetail({ sessionId }: { sessionId: string }) {
       description: session.description,
       notes: session.notes,
       status: session.status,
+      coverImageSource: session.coverImageSource ?? "manual",
+      coverImageAssetId: session.coverImageAssetId,
+      coverImageUrl: session.coverImageUrl,
+      detailImageSource: session.detailImageSource ?? "manual",
+      detailImageAssetIds: session.detailImageAssetIds ?? [],
+      detailImageUrls: session.detailImageUrls ?? [],
     });
     setEditOpen(true);
   };
@@ -126,7 +142,8 @@ export function SessionDetail({ sessionId }: { sessionId: string }) {
   const submitPlayer = async () => {
     if (!session) return;
     const values = await playerForm.validateFields();
-    const { confirmPassword: _, ...cleanValues } = values;
+    const cleanValues = { ...values };
+    delete cleanValues.confirmPassword;
     setSaving(true);
     try {
       let selected = playerOptions.find((item) => item.id === cleanValues.selectedStorePlayerId);
@@ -175,6 +192,22 @@ export function SessionDetail({ sessionId }: { sessionId: string }) {
     });
   };
 
+  const cancelSession = () => {
+    if (!session) return;
+    modalApi.confirm({
+      title: `取消「${session.title}」？`,
+      content: "取消后该场次会保留在后台记录中，但玩家端不会再作为可报名场次展示。",
+      okText: "确认取消",
+      okButtonProps: { danger: true },
+      cancelText: "先不取消",
+      onOk: async () => {
+        const next = await cancelGameSession(session.id);
+        setSession(next);
+        messageApi.success("场次已取消");
+      },
+    });
+  };
+
   if (!session) {
     return (
       <div className="page-stack">
@@ -186,6 +219,9 @@ export function SessionDetail({ sessionId }: { sessionId: string }) {
   }
 
   const percent = Math.min(100, Math.round((session.joinedSeats / session.capacity) * 100));
+  const activeRoomOptions = roomOptions
+    .filter((room) => room.status === "active" || room.id === session.roomId)
+    .map((room) => ({ value: room.id, label: `${room.name}（${room.capacity}人）` }));
 
   return (
     <div className="page-stack">
@@ -194,23 +230,33 @@ export function SessionDetail({ sessionId }: { sessionId: string }) {
       <Link href="/sessions"><Button type="text" icon={<ArrowLeftOutlined />}>返回场次列表</Button></Link>
       <div className="page-grid">
         <Card className="surface-card span-8">
-          <Space orientation="vertical" size={18} style={{ width: "100%" }}>
+          <Space direction="vertical" size={18} style={{ width: "100%" }}>
+            {session.coverImageUrl ? <img src={session.coverImageUrl} alt={session.title} className={styles.detailHeroImage} /> : null}
             <Space><Tag color="purple">{session.scriptName}</Tag><Tag color="success">{statusLabels[session.status] ?? session.status}</Tag></Space>
             <Typography.Title level={2} style={{ margin: 0 }}>{session.title}</Typography.Title>
             <Descriptions column={{ xs: 1, sm: 2 }} items={[
               { key: "time", label: "开场时间", children: <><CalendarOutlined /> {formatTime(session.startTime)}</> },
               { key: "duration", label: "预计时长", children: <><ClockCircleOutlined /> {session.durationMinutes} 分钟</> },
               { key: "dm", label: "带场 DM", children: <><UserOutlined /> {session.dmName || "待定"}</> },
+              { key: "room", label: "房间", children: session.roomName || "未分配" },
               { key: "people", label: "当前人数", children: <><TeamOutlined /> {session.joinedSeats}/{session.capacity}</> },
             ]} />
             <div><Typography.Text type="secondary">拼车进度</Typography.Text><Progress percent={percent} strokeColor="#6d5dfc" /></div>
             {session.description ? <Typography.Paragraph>{session.description}</Typography.Paragraph> : null}
+            {session.detailImageUrls?.length ? (
+              <div className={styles.detailImageList}>
+                {session.detailImageUrls.map((url) => (
+                  <img key={url} src={url} alt={`${session.title} 详情图`} />
+                ))}
+              </div>
+            ) : null}
           </Space>
         </Card>
         <Card className="surface-card span-4" title="快捷操作">
-          <Space orientation="vertical" style={{ width: "100%" }}>
+          <Space direction="vertical" style={{ width: "100%" }}>
             <Button type="primary" block icon={<PlusOutlined />} onClick={() => setPlayerOpen(true)}>手动新增约车</Button>
             <Button block icon={<EditOutlined />} onClick={openEdit}>编辑场次信息</Button>
+            <Button block danger disabled={session.status === "cancelled"} onClick={cancelSession}>取消场次</Button>
             <Button block>复制报名链接</Button>
           </Space>
         </Card>
@@ -220,7 +266,7 @@ export function SessionDetail({ sessionId }: { sessionId: string }) {
             locale={{ emptyText: "暂无约车玩家" }}
             renderItem={(player) => (
               <List.Item
-                actions={[<Button key="delete" type="text" danger icon={<DeleteOutlined />} onClick={() => removePlayer(player.id)}>移除</Button>]}
+                actions={[<Button key="delete" icon={<DeleteOutlined />} onClick={() => removePlayer(player.id)} className="danger-soft-button">移除</Button>]}
                 extra={<Tag color={player.status === "confirmed" ? "success" : "processing"}>{playerStatusLabels[player.status] ?? player.status}</Tag>}
               >
                 <List.Item.Meta
@@ -246,6 +292,7 @@ export function SessionDetail({ sessionId }: { sessionId: string }) {
           <Form.Item name="title" label="场次标题" rules={[{ required: true }]}><Input /></Form.Item>
           <div className={styles.formGrid}>
             <Form.Item name="startTime" label="开场时间" rules={[{ required: true }]}><Input type="datetime-local" /></Form.Item>
+            <Form.Item name="roomId" label="占用房间"><Select allowClear options={activeRoomOptions} /></Form.Item>
             <Form.Item name="dmUserId" label="带场 DM"><Select allowClear options={dmOptions.map((item) => ({ value: item.id, label: item.nickname || item.phone || "未命名 DM" }))} /></Form.Item>
             <Form.Item name="durationMinutes" label="预计时长（分钟）"><InputNumber min={30} max={1440} style={{ width: "100%" }} /></Form.Item>
             <Form.Item name="capacity" label="最大人数"><InputNumber min={1} max={50} style={{ width: "100%" }} /></Form.Item>
@@ -259,6 +306,7 @@ export function SessionDetail({ sessionId }: { sessionId: string }) {
             ]} /></Form.Item>
           </div>
           <Form.Item name="description" label="展示说明"><Input.TextArea rows={3} /></Form.Item>
+          <SessionImageFields form={sessionForm} />
           <Form.Item name="notes" label="内部备注"><Input.TextArea rows={2} /></Form.Item>
         </Form>
       </Modal>

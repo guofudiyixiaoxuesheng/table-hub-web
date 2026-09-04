@@ -1,12 +1,13 @@
 "use client";
 
-import { LockOutlined, ShopOutlined, UserOutlined } from "@ant-design/icons";
+import { LogoutOutlined, LockOutlined, ShopOutlined, UserOutlined } from "@ant-design/icons";
 import { Avatar, Button, Card, Descriptions, Space, Tag, Typography } from "antd";
 import { useState } from "react";
 import type { AppRole } from "@/lib/auth/types";
 import { ChangePasswordModal } from "./change-password-modal";
 import { DmInviteCard } from "./dm-invite-card";
 import { useAuth } from "./auth-provider";
+import { MyReservations } from "./my-reservations";
 
 const ROLE_LABELS: Record<AppRole, string> = {
   admin: "超级管理员",
@@ -17,7 +18,7 @@ const ROLE_LABELS: Record<AppRole, string> = {
 };
 
 export function MyProfile() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [passwordOpen, setPasswordOpen] = useState(false);
   if (!user) return null;
 
@@ -32,6 +33,7 @@ export function MyProfile() {
             <Tag color={user.role === "admin" || user.role === "manager" ? "purple" : "blue"}>{ROLE_LABELS[user.role]}</Tag>
           </div>
           <Button icon={<LockOutlined />} onClick={() => setPasswordOpen(true)}>修改密码</Button>
+          <Button icon={<LogoutOutlined />} onClick={() => void logout()} className="danger-soft-button">退出登录</Button>
         </Space>
       </Card>
       <Card className="surface-card span-8" title="个人信息">
@@ -43,6 +45,9 @@ export function MyProfile() {
           <Descriptions.Item label="门店 ID">{user.storeId || "—"}</Descriptions.Item>
         </Descriptions>
       </Card>
+      <div className="span-12">
+        <MyReservations />
+      </div>
       {(user.role === "manager" || user.role === "admin") && user.storeId && <DmInviteCard />}
       <ChangePasswordModal open={passwordOpen} onClose={() => setPasswordOpen(false)} />
     </div>

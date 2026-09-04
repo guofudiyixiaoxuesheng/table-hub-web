@@ -72,6 +72,7 @@ select {
 }
 
 .span-4 { grid-column: span 4; }
+.span-6 { grid-column: span 6; }
 .span-8 { grid-column: span 8; }
 .span-12 { grid-column: span 12; }
 .muted-text { color: var(--muted); }
@@ -95,8 +96,57 @@ select {
   overflow-x: hidden;
 }
 
+.ant-table .ant-tag {
+  border: 1px solid rgba(109, 93, 252, 0.22);
+  border-radius: 999px;
+  background: rgba(109, 93, 252, 0.06);
+  font-weight: 500;
+}
+
+.ant-table .ant-tag-success {
+  border-color: rgba(25, 135, 84, 0.24);
+  background: rgba(25, 135, 84, 0.07);
+}
+
+.ant-table .ant-tag-error {
+  border-color: rgba(220, 53, 69, 0.24);
+  background: rgba(220, 53, 69, 0.07);
+}
+
+.ant-table .ant-tag-warning {
+  border-color: rgba(250, 173, 20, 0.3);
+  background: rgba(250, 173, 20, 0.09);
+}
+
+.ant-table .ant-tag-processing,
+.ant-table .ant-tag-blue {
+  border-color: rgba(22, 119, 255, 0.24);
+  background: rgba(22, 119, 255, 0.07);
+}
+
+.danger-soft-button.ant-btn {
+  border-color: rgba(229, 72, 77, 0.34);
+  background: #fff;
+  color: #d83b40;
+}
+
+.danger-soft-button.ant-btn:not(:disabled):not(.ant-btn-disabled):hover,
+.danger-soft-button.ant-btn:not(:disabled):not(.ant-btn-disabled):focus-visible {
+  border-color: #e5484d;
+  background: rgba(229, 72, 77, 0.06);
+  color: #c92f35;
+}
+
+.danger-soft-button.ant-btn:disabled,
+.danger-soft-button.ant-btn.ant-btn-disabled {
+  border-color: #f2a9ac;
+  background: #fff;
+  color: #f2a9ac;
+}
+
 @media (max-width: 900px) {
   .span-4,
+  .span-6,
   .span-8 { grid-column: span 12; }
 }
 

@@ -2,14 +2,20 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { CloudUploadOutlined, DeleteOutlined, EyeOutlined, FilePdfOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
-import { Button, Card, Empty, Input, Modal, Progress, Select, Space, Table, Tag, Tooltip, Typography, Upload, message } from "antd";
+import { ClearOutlined, CloudUploadOutlined, DeleteOutlined, EyeOutlined, FilePdfOutlined, SearchOutlined } from "@ant-design/icons";
+import { Button, Card, Empty, Input, Modal, Progress, Select, Space, Table, Tag, Tooltip, Typography, message } from "antd";
 import { deleteKnowledgeDocument, listKnowledgeDocuments } from "@/lib/oss/knowledge-resource-api";
 import { KNOWLEDGE_RESOURCE_OPTIONS, SCRIPT_GENRE_OPTIONS, type KnowledgeDocumentListItem, type KnowledgeResourceType } from "@/lib/oss/knowledge-resource-types";
 import styles from "./knowledge-dashboard.module.css";
 
 const resourceLabels = new Map(KNOWLEDGE_RESOURCE_OPTIONS.map((item) => [item.value, item.label]));
 const scriptGenreLabels = new Map(SCRIPT_GENRE_OPTIONS.map((item) => [item.value, item.label]));
+const aiStatusColor = new Map([
+  ["ready", "success"],
+  ["processing", "processing"],
+  ["partial_error", "error"],
+  ["not_ready", "default"],
+]);
 
 function formatBytes(bytes: number): string {
   if (!bytes) return "0 B";
@@ -42,8 +48,9 @@ export function KnowledgeDashboard() {
   const [total, setTotal] = useState(0);
   const [messageApi, contextHolder] = message.useMessage();
   const [modalApi, modalContextHolder] = Modal.useModal();
-  const totalFiles = useMemo(() => rows.reduce((sum, item) => sum + item.fileCount, 0), [rows]);
-  const readyCount = useMemo(() => rows.filter((item) => item.activeVersionId).length, [rows]);
+  const readyCount = useMemo(() => rows.filter((item) => item.aiStatus === "ready").length, [rows]);
+  const errorCount = useMemo(() => rows.filter((item) => item.aiStatus === "partial_error").length, [rows]);
+  const pendingCount = useMemo(() => rows.filter((item) => item.aiStatus !== "ready" && item.aiStatus !== "partial_error").length, [rows]);
   const readyPercent = rows.length ? Math.round((readyCount / rows.length) * 100) : 0;
 
   const loadDocuments = useCallback(async () => {
@@ -65,7 +72,10 @@ export function KnowledgeDashboard() {
   }, [keyword, messageApi, page, pageSize, resourceType]);
 
   useEffect(() => {
-    void loadDocuments();
+    const timer = window.setTimeout(() => {
+      void loadDocuments();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [loadDocuments]);
 
   const confirmDelete = (record: KnowledgeDocumentListItem) => {
@@ -89,34 +99,48 @@ export function KnowledgeDashboard() {
     });
   };
 
+  const clearFilters = () => {
+    setKeyword("");
+    setResourceType(undefined);
+    setPage(1);
+  };
+
   return (
     <div className="page-grid">
       {contextHolder}
       {modalContextHolder}
-      <Card className="surface-card span-4">
-        <Space orientation="vertical" size={16} style={{ width: "100%" }}>
-          <Typography.Text type="secondary">知识库状态</Typography.Text>
-          <Typography.Title level={3} style={{ margin: 0 }}>{rows.length} 个资源 / {totalFiles} 个文件</Typography.Title>
-          <Progress percent={readyPercent} strokeColor="#6d5dfc" />
-          <Typography.Text type="secondary">剧本与门店资料使用同一套版本和后续 RAG 状态</Typography.Text>
-        </Space>
+      <Card className={`surface-card ${styles.overviewPanel}`}>
+        <div className={styles.overviewCard}>
+          <Typography.Text type="secondary">知识库概览</Typography.Text>
+          <Typography.Title level={3}>{rows.length} 个资源</Typography.Title>
+          <Typography.Text type="secondary">
+            {readyCount} 个可直接问 AI · {pendingCount} 个待整理 · {errorCount} 个需处理
+          </Typography.Text>
+          <div className={styles.overviewProgress}>
+            <Progress percent={readyPercent} strokeColor="#6d5dfc" />
+          </div>
+          <Typography.Text type="secondary">把剧本和门店资料整理好后，AI 才能稳定回答玩家和 DM 的问题。</Typography.Text>
+        </div>
       </Card>
-      <Card className="surface-card span-8">
-        <Upload.Dragger
-          showUploadList={false}
-          beforeUpload={() => false}
-          accept=".pdf,.doc,.docx,.txt,.md,.csv,.jpg,.jpeg,.jfif,.png,.webp,.gif,.bmp,.heic,.heif"
-        >
-          <p><CloudUploadOutlined style={{ fontSize: 30, color: "#6d5dfc" }} /></p>
-          <p style={{ marginBottom: 4 }}>拖入文档或图片，或点击选择文件</p>
-          <Typography.Text type="secondary">上传后将自动检测重复与新版本</Typography.Text>
-        </Upload.Dragger>
+      <Card className={`surface-card ${styles.uploadPanel}`}>
+        <div className={styles.uploadGuide}>
+          <span className={styles.uploadIcon}><CloudUploadOutlined /></span>
+          <div>
+            <Typography.Title level={4}>上传门店资料</Typography.Title>
+            <Typography.Text type="secondary">
+              剧本文件夹、门店规则、常见问题和活动说明都可以放在这里。上传后点进详情整理一次，后续 AI 就能用这些资料回答问题。
+            </Typography.Text>
+          </div>
+          <Link href="/knowledge/upload">
+            <Button type="primary" icon={<CloudUploadOutlined />}>上传资源</Button>
+          </Link>
+        </div>
       </Card>
       <Card
         className="surface-card span-12"
         title="全部知识资源"
         extra={
-          <Space wrap>
+          <div className={styles.toolbar}>
             <Input
               allowClear
               prefix={<SearchOutlined />}
@@ -139,8 +163,8 @@ export function KnowledgeDashboard() {
               options={[...KNOWLEDGE_RESOURCE_OPTIONS]}
               className={styles.typeSelect}
             />
-            <Button icon={<ReloadOutlined />} onClick={() => void loadDocuments()}>刷新</Button>
-          </Space>
+            <Button className={styles.refreshButton} icon={<ClearOutlined />} onClick={clearFilters}>清空过滤项</Button>
+          </div>
         }
       >
         <Table
@@ -183,7 +207,16 @@ export function KnowledgeDashboard() {
             { title: "文件", dataIndex: "fileCount", width: 90 },
             { title: "大小", dataIndex: "totalSize", width: 110, render: formatBytes },
             { title: "更新时间", dataIndex: "updatedAt", width: 150, render: formatDate },
-            { title: "状态", dataIndex: "status", width: 100, render: (status, record) => <Tag color={record.activeVersionId ? "success" : "processing"}>{record.activeVersionId ? "已上传" : status}</Tag> },
+            {
+              title: "AI 状态",
+              dataIndex: "aiStatusText",
+              width: 130,
+              render: (statusText, record) => (
+                <Tooltip title={`处理进度 ${record.pipelinePercent ?? 0}%`}>
+                  <Tag color={aiStatusColor.get(record.aiStatus ?? "not_ready")}>{statusText ?? "未准备"}</Tag>
+                </Tooltip>
+              ),
+            },
             {
               title: "操作",
               width: 132,
@@ -192,7 +225,7 @@ export function KnowledgeDashboard() {
               render: (_, record) => (
                 <Space size={4} className={styles.actions}>
                   <Link href={`/knowledge/${record.id}`}><Button type="text" size="small" icon={<EyeOutlined />} className={styles.actionButton}>详情</Button></Link>
-                  <Button type="text" size="small" danger icon={<DeleteOutlined />} loading={deletingId === record.id} onClick={() => confirmDelete(record)} className={styles.actionButton}>删除</Button>
+                  <Button size="small" icon={<DeleteOutlined />} loading={deletingId === record.id} onClick={() => confirmDelete(record)} className={`${styles.actionButton} danger-soft-button`}>删除</Button>
                 </Space>
               ),
             },

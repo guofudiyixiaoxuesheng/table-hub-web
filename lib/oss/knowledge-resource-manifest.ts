@@ -2,8 +2,20 @@ import type { CreateKnowledgeResourcePayload, KnowledgeResourceFile } from "./kn
 
 export type BrowserFolderFile = File & { webkitRelativePath?: string };
 
+const IGNORED_FILE_NAMES = new Set([".DS_Store", "Thumbs.db", "desktop.ini"]);
+const IGNORED_PATH_PARTS = new Set(["__MACOSX"]);
+
 export function getRelativePath(file: BrowserFolderFile): string {
   return file.webkitRelativePath || file.name;
+}
+
+export function isUploadableKnowledgeFile(file: BrowserFolderFile): boolean {
+  const relativePath = getRelativePath(file);
+  const parts = relativePath.split("/");
+  const name = parts.at(-1) ?? file.name;
+  if (IGNORED_FILE_NAMES.has(name)) return false;
+  if (parts.some((part) => IGNORED_PATH_PARTS.has(part))) return false;
+  return true;
 }
 
 export function createClientFileId(file: BrowserFolderFile, index: number): string {

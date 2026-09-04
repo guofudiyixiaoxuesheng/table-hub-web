@@ -1,29 +1,25 @@
 "use client";
 
-import { Button } from "antd";
+import { Button, Card, Typography } from "antd";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/features/auth/auth-provider";
-import styles from "./player-mobile-shell.module.css";
+import { MyProfile } from "@/features/auth/my-profile";
 
 export function PlayerProfileEntry() {
+  const router = useRouter();
   const { user } = useAuth();
-  const navigate = () => {
-    window.location.assign(user ? "/me" : "/login?next=/p/me");
-  };
+
+  if (user) return <MyProfile />;
 
   return (
-    <>
-      <section className={styles.profileCard}>
-        <p>{user ? "已登录玩家" : "还没有登录"}</p>
-        <h1>{user?.nickname || user?.phone || "登录后查看我的预约"}</h1>
-        <p>玩家端未来会展示我的预约码、历史拼车、偏好标签和常用联系方式。</p>
-        <Button type="primary" size="large" onClick={navigate}>
-          {user ? "查看账号资料" : "手机号登录 / 注册"}
-        </Button>
-      </section>
-      <section className={`${styles.section} ${styles.plainCard}`} style={{ padding: 16 }}>
-        <h2 style={{ marginTop: 0 }}>我的预约</h2>
-        <div className={styles.empty}>预约提交接口接入后，这里会显示预约码和核验状态。</div>
-      </section>
-    </>
+    <Card className="surface-card">
+      <Typography.Title level={3} style={{ marginTop: 0 }}>登录后查看我的预约</Typography.Title>
+      <Typography.Paragraph type="secondary">
+        登录后可以预约拼车、查看预约码、取消约车，也能同步查看自己的玩本记录。
+      </Typography.Paragraph>
+      <Button type="primary" size="large" block onClick={() => router.push("/login?next=/p/me")}>
+        手机号登录 / 注册
+      </Button>
+    </Card>
   );
 }

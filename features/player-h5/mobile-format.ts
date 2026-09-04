@@ -17,6 +17,14 @@ export function formatSessionTime(value: string) {
   }).format(date);
 }
 
+export function formatSessionDateLine(value: string) {
+  const date = new Date(value);
+  const today = todayValue();
+  const target = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  const dayText = target === today ? "今天" : new Intl.DateTimeFormat("zh-CN", { weekday: "short" }).format(date);
+  return `${String(date.getMonth() + 1).padStart(2, "0")}月${String(date.getDate()).padStart(2, "0")}日 ${dayText} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
 export function formatPrice(priceCents: number) {
   if (!priceCents) return "到店咨询";
   return `¥${(priceCents / 100).toFixed(0)}/人`;

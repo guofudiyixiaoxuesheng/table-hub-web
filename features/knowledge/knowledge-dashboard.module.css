@@ -1,6 +1,32 @@
+.overviewPanel {
+  grid-column: span 5;
+}
+
+.uploadPanel {
+  grid-column: span 7;
+}
+
 .resourceTable :global(.ant-table) {
   min-width: 0;
   white-space: nowrap;
+}
+
+.overviewCard {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.overviewCard h3 {
+  margin: 0 !important;
+}
+
+.overviewProgress {
+  width: min(260px, 100%);
+}
+
+.overviewProgress :global(.ant-progress) {
+  margin: 0;
 }
 
 .resourceTable :global(.ant-table-container) {
@@ -19,6 +45,7 @@
 }
 
 .resourceTable :global(.ant-table-cell) {
+  padding: 14px 16px !important;
   vertical-align: middle;
 }
 
@@ -61,16 +88,73 @@
   width: 100%;
 }
 
+.actionsLeft {
+  justify-content: flex-start;
+}
+
 .actionButton {
   padding-inline: 8px;
 }
 
-.searchInput {
-  width: min(260px, 54vw);
+.toolbar {
+  display: grid;
+  grid-template-columns: 260px 140px 112px;
+  gap: 10px;
 }
 
-.typeSelect {
-  width: 140px;
+.searchInput,
+.typeSelect,
+.refreshButton {
+  height: 40px;
+}
+
+.searchInput :global(.ant-input-affix-wrapper),
+.typeSelect :global(.ant-select-selector) {
+  height: 40px !important;
+  align-items: center;
+}
+
+.uploadGuide {
+  display: grid;
+  min-height: 150px;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 18px;
+}
+
+.uploadGuide a {
+  grid-column: 2;
+  justify-self: start;
+}
+
+.uploadGuide h4 {
+  margin: 0 0 8px !important;
+}
+
+.uploadIcon {
+  display: grid;
+  width: 54px;
+  height: 54px;
+  place-items: center;
+  border-radius: 18px;
+  background: #efedff;
+  color: #6d5dfc;
+  font-size: 26px;
+}
+
+.detailTabsCard :global(.ant-card-body) {
+  padding: 28px;
+}
+
+.detailTabsCard :global(.ant-tabs-tabpane) {
+  padding-top: 6px;
+}
+
+@media (max-width: 900px) {
+  .overviewPanel,
+  .uploadPanel {
+    grid-column: span 12;
+  }
 }
 
 @media (max-width: 640px) {
@@ -78,8 +162,22 @@
     padding-inline: 6px;
   }
 
+  .toolbar {
+    grid-template-columns: 1fr;
+  }
+
   .searchInput,
-  .typeSelect {
+  .typeSelect,
+  .refreshButton {
     width: 100%;
+  }
+
+  .uploadGuide {
+    grid-template-columns: 1fr;
+    justify-items: start;
+  }
+
+  .detailTabsCard :global(.ant-card-body) {
+    padding: 18px;
   }
 }

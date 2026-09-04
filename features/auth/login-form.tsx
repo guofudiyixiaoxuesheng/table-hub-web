@@ -28,9 +28,9 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
     <Form layout="vertical" size="large" requiredMark={false} onFinish={submit}>
       <PhoneField />
       <PasswordField />
-      <div className={styles.formMeta}><Typography.Text type="secondary">安全登录 · 凭证自动续期</Typography.Text></div>
+      <div className={styles.formMeta}><Typography.Text type="secondary">适合已有密码的店长、DM 或老用户</Typography.Text></div>
       {error && <Typography.Paragraph type="danger" className={styles.error}>{error}</Typography.Paragraph>}
-      <Button type="primary" htmlType="submit" block size="large" loading={submitting || loading}>登录工作台</Button>
+      <Button type="primary" htmlType="submit" block size="large" loading={submitting || loading}>手机号密码登录</Button>
     </Form>
   );
 }
