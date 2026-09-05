@@ -3,7 +3,7 @@
 import { DeleteOutlined, HistoryOutlined, SendOutlined, ThunderboltFilled, UserSwitchOutlined } from "@ant-design/icons";
 import { Avatar, Button, Drawer, Empty, Input, Modal, Space, Spin, message as antdMessage } from "antd";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import {
   deleteChatSession,
   getChatSessionMessages,
@@ -41,7 +41,7 @@ function PlayerChatInner() {
   const [humanModalOpen, setHumanModalOpen] = useState(false);
   const [messageApi, contextHolder] = antdMessage.useMessage();
 
-  const refreshSessions = async () => {
+  const refreshSessions = useCallback(async () => {
     setLoadingHistory(true);
     try {
       setSessions(await listChatSessions(getGuestId()));
@@ -50,12 +50,14 @@ function PlayerChatInner() {
     } finally {
       setLoadingHistory(false);
     }
-  };
+  }, [messageApi]);
 
   useEffect(() => {
-    void refreshSessions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    const timer = window.setTimeout(() => {
+      void refreshSessions();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [refreshSessions]);
 
   const createSession = () => {
     setThreadId(null);

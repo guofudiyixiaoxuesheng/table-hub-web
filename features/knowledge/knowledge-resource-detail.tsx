@@ -17,7 +17,8 @@ import {
   CloudUploadOutlined,
   BulbOutlined,
 } from "@ant-design/icons";
-import { Button, Card, Col, Collapse, Descriptions, Drawer, Empty, Image, Input, Modal, Progress, Row, Select, Space, Statistic, Table, Tabs, Tag, Timeline, Tooltip, Typography, message } from "antd";
+import { XMarkdown } from "@ant-design/x-markdown";
+import { Button, Card, Col, Collapse, Descriptions, Drawer, Empty, Form, Image, Input, InputNumber, Modal, Progress, Row, Select, Space, Statistic, Table, Tabs, Tag, Timeline, Tooltip, Typography, message } from "antd";
 import { chunkKnowledgeDocument, deleteKnowledgeFile, embedKnowledgeChunks, getAssetPreviewUrl, getKnowledgeManifest, getLoadedMarkdown, listKnowledgeChunks, listKnowledgeDocuments, listKnowledgeEmbeddings, listLoadedFiles, loadKnowledgeDocument, loadKnowledgeFile, retrieveKnowledgeChunks, saveManualParsedText } from "@/lib/oss/knowledge-resource-api";
 import { useIdempotencyKey } from "@/lib/hooks/use-idempotency-key";
 import { createClientId } from "@/lib/utils/create-client-id";
@@ -37,6 +38,8 @@ import {
   type ParsedMarkdownResult,
 } from "@/lib/oss/knowledge-resource-types";
 import { approveScriptMarketingAsset, generateScriptMarketingAssets, generateScriptMarketingImages, listScriptMarketingAssets, type ScriptMarketingAssetResult } from "@/lib/script-marketing/script-marketing-api";
+import { deleteOpeningManual, generateOpeningManual, getOpeningManual, listOpeningManuals, type OpeningManualResult } from "@/lib/script-opening-manual/script-opening-manual-api";
+import { approveScriptProfile, generateScriptProfile, getScriptProfileByDocument, updateScriptProfile, type ScriptProfileResult } from "@/lib/script-profile/script-profile-api";
 import { ScriptMarketingResult } from "@/features/script-marketing/script-marketing-result";
 import styles from "./knowledge-dashboard.module.css";
 
@@ -68,6 +71,13 @@ const fileStatusOptions = [
 ] as const;
 
 type FileStatusFilter = (typeof fileStatusOptions)[number]["value"];
+
+const profileStatusLabels: Record<string, { label: string; color: string }> = {
+  draft: { label: "AI 草稿", color: "processing" },
+  needs_review: { label: "需人工确认", color: "warning" },
+  approved: { label: "已确认可用", color: "success" },
+  failed: { label: "生成失败", color: "error" },
+};
 
 function buildUploadVersionHref(document: KnowledgeDocumentListItem): string {
   const params = new URLSearchParams({
@@ -135,6 +145,43 @@ function renderMarkdownWithAssets(markdown: string, assetUrls: Map<string, strin
   return nodes;
 }
 
+function validationNumber(validation: Record<string, unknown>, key: string): number | null {
+  const value = validation[key];
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function validationStringList(validation: Record<string, unknown>, key: string): string[] {
+  const value = validation[key];
+  return Array.isArray(value) ? value.map((item) => String(item)).filter(Boolean) : [];
+}
+
+function validationText(validation: Record<string, unknown>, key: string): string {
+  const value = validation[key];
+  return typeof value === "string" ? value : "";
+}
+
+function percentValue(value: number | null): number {
+  return Math.round(Math.max(0, Math.min(1, value ?? 0)) * 100);
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function manualOverallValidation(validation: Record<string, unknown>): Record<string, unknown> {
+  const overall = asRecord(validation.overall);
+  return Object.keys(overall).length ? overall : validation;
+}
+
+function manualScriptFacts(validation: Record<string, unknown>): Record<string, unknown> {
+  return asRecord(validation.scriptFacts);
+}
+
 export function KnowledgeResourceDetail({ documentId }: { documentId: string }) {
   const [document, setDocument] = useState<KnowledgeDocumentListItem | null>(null);
   const [manifest, setManifest] = useState<KnowledgeDocumentManifest | null>(null);
@@ -172,6 +219,15 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
   const [marketingFeedbackOpen, setMarketingFeedbackOpen] = useState(false);
   const [marketingFeedback, setMarketingFeedback] = useState("");
   const [marketingImageLoadingId, setMarketingImageLoadingId] = useState<string | null>(null);
+  const [openingManualLoading, setOpeningManualLoading] = useState(false);
+  const [openingManualOpen, setOpeningManualOpen] = useState(false);
+  const [openingManualResult, setOpeningManualResult] = useState<OpeningManualResult | null>(null);
+  const [openingManualVersions, setOpeningManualVersions] = useState<OpeningManualResult[]>([]);
+  const [openingManualDeletingId, setOpeningManualDeletingId] = useState<string | null>(null);
+  const [scriptProfile, setScriptProfile] = useState<ScriptProfileResult | null>(null);
+  const [scriptProfileLoading, setScriptProfileLoading] = useState(false);
+  const [scriptProfileOpen, setScriptProfileOpen] = useState(false);
+  const [scriptProfileForm] = Form.useForm();
   const [messageApi, contextHolder] = message.useMessage();
   const loadAllIdempotency = useIdempotencyKey([document?.id, document?.activeVersionId, "load-all"]);
   const chunkIdempotency = useIdempotencyKey([document?.id, document?.activeVersionId, "chunk"]);
@@ -198,6 +254,8 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
       setEmbeddingResult(embeddings);
       if (current.resourceType === "script") {
         setMarketingVersions(await listScriptMarketingAssets(current.id, "approved"));
+        setOpeningManualVersions(await listOpeningManuals(current.id));
+        setScriptProfile(await getScriptProfileByDocument(current.id));
       }
     } catch (error) {
       messageApi.error(error instanceof Error ? error.message : "知识库详情加载失败");
@@ -400,6 +458,74 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
     }
   };
 
+  const openScriptProfileDrawer = () => {
+    if (!scriptProfile) return;
+    scriptProfileForm.setFieldsValue({
+      name: scriptProfile.name,
+      aliasNames: scriptProfile.aliasNames,
+      genres: scriptProfile.genres,
+      playerCountMin: scriptProfile.playerCountMin,
+      playerCountMax: scriptProfile.playerCountMax,
+      durationMinutes: scriptProfile.durationMinutes,
+      difficulty: scriptProfile.difficulty,
+      dmDifficulty: scriptProfile.dmDifficulty,
+      summary: scriptProfile.summary,
+      storyBackground: scriptProfile.storyBackground,
+      truthSummary: scriptProfile.truthSummary,
+      sellingPoints: scriptProfile.sellingPoints,
+      suitablePlayers: scriptProfile.suitablePlayers,
+      coreMechanics: scriptProfile.coreMechanics,
+      materialChecklist: scriptProfile.materialChecklist,
+      openingRisks: scriptProfile.openingRisks,
+      spoilerNotes: scriptProfile.spoilerNotes,
+    });
+    setScriptProfileOpen(true);
+  };
+
+  const triggerGenerateScriptProfile = async () => {
+    if (!document) return;
+    setScriptProfileLoading(true);
+    try {
+      const result = await generateScriptProfile(document.id);
+      setScriptProfile(result);
+      messageApi.success("剧本档案已生成");
+    } catch (error) {
+      messageApi.error(error instanceof Error ? error.message : "剧本档案生成失败");
+    } finally {
+      setScriptProfileLoading(false);
+    }
+  };
+
+  const submitScriptProfile = async () => {
+    if (!scriptProfile) return;
+    setScriptProfileLoading(true);
+    try {
+      const values = await scriptProfileForm.validateFields();
+      const result = await updateScriptProfile(scriptProfile.id, values);
+      setScriptProfile(result);
+      setScriptProfileOpen(false);
+      messageApi.success("剧本档案已更新");
+    } catch (error) {
+      messageApi.error(error instanceof Error ? error.message : "剧本档案保存失败");
+    } finally {
+      setScriptProfileLoading(false);
+    }
+  };
+
+  const confirmApproveScriptProfile = async () => {
+    if (!scriptProfile) return;
+    setScriptProfileLoading(true);
+    try {
+      const result = await approveScriptProfile(scriptProfile.id);
+      setScriptProfile(result);
+      messageApi.success("剧本档案已确认使用");
+    } catch (error) {
+      messageApi.error(error instanceof Error ? error.message : "确认使用失败");
+    } finally {
+      setScriptProfileLoading(false);
+    }
+  };
+
   const adoptMarketingResult = () => {
     if (!marketingResult?.assetId) return;
     setMarketingLoading(true);
@@ -429,6 +555,64 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
         messageApi.error(error instanceof Error ? error.message : "AI 图片生成失败");
       })
       .finally(() => setMarketingImageLoadingId(null));
+  };
+
+  const generateManual = async () => {
+    if (!document) return;
+    setOpeningManualLoading(true);
+    try {
+      const result = await generateOpeningManual(document.id, {
+        style: "professional",
+        targetDmLevel: "newbie",
+        extraRequirement: "生成适合新手 DM 使用的专业主持人手册，重点包含开本准备、分幕流程、控场话术和风险提醒。",
+      });
+      setOpeningManualResult(result);
+      setOpeningManualVersions((current) => [result, ...current.filter((item) => item.id !== result.id)]);
+      if (result.status === "ready") {
+        setOpeningManualOpen(true);
+      }
+      messageApi.success(result.status === "ready" ? "AI 主持人手册已生成" : "生成任务已创建，可稍后刷新查看结果");
+    } catch (error) {
+      messageApi.error(error instanceof Error ? error.message : "AI 主持人手册生成失败");
+    } finally {
+      setOpeningManualLoading(false);
+    }
+  };
+
+  const openManualDetail = async (manualId: string) => {
+    try {
+      const result = await getOpeningManual(manualId);
+      setOpeningManualResult(result);
+      setOpeningManualOpen(true);
+    } catch (error) {
+      messageApi.error(error instanceof Error ? error.message : "主持人手册详情加载失败");
+    }
+  };
+
+  const confirmDeleteManual = (manual: OpeningManualResult) => {
+    modalApi.confirm({
+      title: "确认删除这个主持人手册？",
+      content: `将删除「${manual.title}」第 ${manual.manualVersionNo} 版。不会删除原始知识库资料。`,
+      okText: "删除",
+      okButtonProps: { danger: true },
+      cancelText: "取消",
+      onOk: async () => {
+        setOpeningManualDeletingId(manual.id);
+        try {
+          await deleteOpeningManual(manual.id);
+          setOpeningManualVersions((current) => current.filter((item) => item.id !== manual.id));
+          if (openingManualResult?.id === manual.id) {
+            setOpeningManualResult(null);
+            setOpeningManualOpen(false);
+          }
+          messageApi.success("主持人手册已删除");
+        } catch (error) {
+          messageApi.error(error instanceof Error ? error.message : "主持人手册删除失败");
+        } finally {
+          setOpeningManualDeletingId(null);
+        }
+      },
+    });
   };
 
   const reloadFile = async (record: KnowledgeManifestFile) => {
@@ -592,6 +776,54 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
         </Space>
       </Card>
       {document?.resourceType === "script" && (
+        <Card className="surface-card" title="剧本档案">
+          <Space direction="vertical" size={12} style={{ width: "100%" }}>
+            <Typography.Text type="secondary">
+              系统会从剧本资料中提炼人数、类型、卖点、角色、物料和开本风险。它是后续 AI 客服、主持人手册、宣传物料和创建场次的基础资料。
+            </Typography.Text>
+            {scriptProfile ? (
+              <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                <Space wrap>
+                  <Tag color={profileStatusLabels[scriptProfile.reviewStatus]?.color ?? "default"}>
+                    {profileStatusLabels[scriptProfile.reviewStatus]?.label ?? scriptProfile.reviewStatus}
+                  </Tag>
+                  {scriptProfile.confidenceScore != null ? <Tag>完整度 {scriptProfile.confidenceScore} 分</Tag> : null}
+                  {scriptProfile.genres.map((genre) => <Tag key={genre}>{genre}</Tag>)}
+                </Space>
+                <Descriptions column={{ xs: 1, sm: 2 }} size="small">
+                  <Descriptions.Item label="剧本名称">{scriptProfile.name}</Descriptions.Item>
+                  <Descriptions.Item label="人数">
+                    {scriptProfile.playerCountMin || scriptProfile.playerCountMax
+                      ? `${scriptProfile.playerCountMin ?? "?"}-${scriptProfile.playerCountMax ?? "?"} 人`
+                      : "暂无"}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="时长">{scriptProfile.durationMinutes ? `${scriptProfile.durationMinutes} 分钟` : "暂无"}</Descriptions.Item>
+                  <Descriptions.Item label="DM难度">{scriptProfile.dmDifficulty ?? "暂无"}</Descriptions.Item>
+                </Descriptions>
+                {scriptProfile.summary ? <Typography.Paragraph ellipsis={{ rows: 2 }}>{scriptProfile.summary}</Typography.Paragraph> : null}
+                {scriptProfile.errorMessage ? <Typography.Text type="warning">{scriptProfile.errorMessage}</Typography.Text> : null}
+                <Space wrap>
+                  <Button type="primary" loading={scriptProfileLoading} onClick={openScriptProfileDrawer}>查看/编辑档案</Button>
+                  <Button loading={scriptProfileLoading} disabled={scriptProfile.reviewStatus === "approved"} onClick={() => void confirmApproveScriptProfile()}>
+                    确认使用
+                  </Button>
+                  <Button loading={scriptProfileLoading} disabled={!aiReady} onClick={() => void triggerGenerateScriptProfile()}>
+                    重新生成
+                  </Button>
+                </Space>
+              </Space>
+            ) : (
+              <Space direction="vertical" size={10}>
+                <Typography.Text type="secondary">暂无剧本档案。完成“一键整理给 AI 使用”后，可以生成档案。</Typography.Text>
+                <Button type="primary" loading={scriptProfileLoading} disabled={!aiReady} onClick={() => void triggerGenerateScriptProfile()}>
+                  生成剧本档案
+                </Button>
+              </Space>
+            )}
+          </Space>
+        </Card>
+      )}
+      {document?.resourceType === "script" && (
         <Card className="surface-card" title="AI 运营物料">
           <Space direction="vertical" size={12} style={{ width: "100%" }}>
             <Typography.Text type="secondary">
@@ -625,6 +857,75 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
             ) : (
               <Typography.Text type="secondary">暂无正式版本。生成草稿后点击“确定使用”，会加入这里方便店长后续选择。</Typography.Text>
             )}
+          </Space>
+        </Card>
+      )}
+      {document?.resourceType === "script" && (
+        <Card className="surface-card" title="AI 主持人手册">
+          <Space direction="vertical" size={12} style={{ width: "100%" }}>
+            <Typography.Text type="secondary">
+              基于当前剧本资料生成 DM 可用的开本准备、分幕流程、控场话术和注意事项。当前先用于跑通生成链路，后续会接入正式 RAG 内容和店长审批。
+            </Typography.Text>
+            <Space wrap>
+              <Button
+                type="primary"
+                icon={<FileTextOutlined />}
+                loading={openingManualLoading}
+                disabled={!aiReady}
+                onClick={() => void generateManual()}
+              >
+                生成主持人手册
+              </Button>
+              {openingManualResult ? (
+                <Button onClick={() => setOpeningManualOpen(true)}>查看本次结果</Button>
+              ) : null}
+              <Button onClick={loadDetail}>刷新列表</Button>
+            </Space>
+            {!aiReady ? <Typography.Text type="secondary">请先完成“一键整理给 AI 使用”，再生成主持人手册。</Typography.Text> : null}
+            {openingManualResult ? (
+              <Space wrap>
+                <Tag color={openingManualResult.status === "ready" ? "success" : "processing"}>{openingManualResult.status}</Tag>
+                <Tag>第 {openingManualResult.manualVersionNo} 版</Tag>
+                <Typography.Text>{openingManualResult.title}</Typography.Text>
+              </Space>
+            ) : (
+              <Typography.Text type="secondary">暂无生成记录。点击按钮后，会调用刚才新增的创建任务接口。</Typography.Text>
+            )}
+            <Table<OpeningManualResult>
+              rowKey="id"
+              size="small"
+              tableLayout="fixed"
+              pagination={false}
+              dataSource={openingManualVersions}
+              locale={{ emptyText: <Empty description="暂无主持人手册版本" /> }}
+              scroll={{ x: 760 }}
+              columns={[
+                { title: "版本", dataIndex: "manualVersionNo", width: 80, render: (value) => <Tag>第 {value} 版</Tag> },
+                { title: "标题", dataIndex: "title", width: 240, ellipsis: true, render: (title) => <EllipsisText value={title} /> },
+                { title: "状态", dataIndex: "status", width: 100, render: (status) => <Tag color={status === "ready" ? "success" : status === "failed" ? "error" : "processing"}>{status}</Tag> },
+                { title: "适用", dataIndex: "targetDmLevel", width: 100, render: (value) => <Tag>{value === "newbie" ? "新手DM" : "老手DM"}</Tag> },
+                { title: "创建时间", dataIndex: "createdAt", width: 180, render: (value) => new Date(value).toLocaleString("zh-CN") },
+                {
+                  title: "操作",
+                  width: 150,
+                  fixed: "right",
+                  render: (_, record) => (
+                    <Space size={4}>
+                      <Button type="text" size="small" onClick={() => void openManualDetail(record.id)}>详情</Button>
+                      <Button
+                        type="text"
+                        danger
+                        size="small"
+                        loading={openingManualDeletingId === record.id}
+                        onClick={() => confirmDeleteManual(record)}
+                      >
+                        删除
+                      </Button>
+                    </Space>
+                  ),
+                },
+              ]}
+            />
           </Space>
         </Card>
       )}
@@ -904,6 +1205,188 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
             regenerating={marketingLoading}
             generatingImages={marketingImageLoadingId === marketingResult.assetId}
           />
+        ) : null}
+      </Drawer>
+      <Drawer
+        title="剧本档案"
+        width={780}
+        open={scriptProfileOpen}
+        onClose={() => setScriptProfileOpen(false)}
+        extra={<Button type="primary" loading={scriptProfileLoading} onClick={() => void submitScriptProfile()}>保存</Button>}
+      >
+        <Form form={scriptProfileForm} layout="vertical">
+          <Row gutter={12}>
+            <Col xs={24} sm={12}>
+              <Form.Item name="name" label="剧本名称" rules={[{ required: true, message: "请输入剧本名称" }]}>
+                <Input placeholder="例如：捉小三" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12}>
+              <Form.Item name="genres" label="剧本类型">
+                <Select mode="tags" placeholder="例如：欢乐、机制、变格" />
+              </Form.Item>
+            </Col>
+            <Col xs={12} sm={6}>
+              <Form.Item name="playerCountMin" label="最少人数">
+                <InputNumber min={0} style={{ width: "100%" }} />
+              </Form.Item>
+            </Col>
+            <Col xs={12} sm={6}>
+              <Form.Item name="playerCountMax" label="最多人数">
+                <InputNumber min={0} style={{ width: "100%" }} />
+              </Form.Item>
+            </Col>
+            <Col xs={12} sm={6}>
+              <Form.Item name="durationMinutes" label="时长/分钟">
+                <InputNumber min={0} style={{ width: "100%" }} />
+              </Form.Item>
+            </Col>
+            <Col xs={12} sm={6}>
+              <Form.Item name="dmDifficulty" label="DM难度">
+                <Input placeholder="例如：新手可开" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item name="aliasNames" label="别名">
+            <Select mode="tags" placeholder="输入后回车，例如：窃听风云之捉小三" />
+          </Form.Item>
+          <Form.Item name="difficulty" label="玩家难度">
+            <Input placeholder="例如：新手友好、进阶、硬核" />
+          </Form.Item>
+          <Form.Item name="summary" label="玩家可见简介">
+            <Input.TextArea rows={3} placeholder="不要剧透，适合展示在玩家端详情页" />
+          </Form.Item>
+          <Form.Item name="storyBackground" label="故事背景">
+            <Input.TextArea rows={3} />
+          </Form.Item>
+          <Form.Item name="truthSummary" label="真相摘要（后台/DM可见）">
+            <Input.TextArea rows={4} placeholder="这里可以包含剧透，后续仅给后台/DM 使用" />
+          </Form.Item>
+          <Form.Item name="sellingPoints" label="玩家卖点">
+            <Select mode="tags" placeholder="输入后回车，例如：欢乐撕逼、机制丰富" />
+          </Form.Item>
+          <Form.Item name="suitablePlayers" label="适合玩家">
+            <Select mode="tags" placeholder="输入后回车，例如：熟人局、团建、新手" />
+          </Form.Item>
+          <Form.Item name="coreMechanics" label="核心机制">
+            <Select mode="tags" placeholder="输入后回车" />
+          </Form.Item>
+          <Form.Item name="materialChecklist" label="物料清单">
+            <Select mode="tags" placeholder="输入后回车" />
+          </Form.Item>
+          <Form.Item name="openingRisks" label="开本风险">
+            <Select mode="tags" placeholder="输入后回车" />
+          </Form.Item>
+          <Form.Item name="spoilerNotes" label="剧透注意事项">
+            <Select mode="tags" placeholder="输入后回车" />
+          </Form.Item>
+          {scriptProfile?.sources.length ? (
+            <Card size="small" title="引用来源">
+              <Space wrap>
+                {scriptProfile.sources.map((source) => <Tag key={source}>{source}</Tag>)}
+              </Space>
+            </Card>
+          ) : null}
+        </Form>
+      </Drawer>
+      <Drawer
+        title={openingManualResult?.title ?? "AI 主持人手册"}
+        width={820}
+        open={openingManualOpen}
+        onClose={() => setOpeningManualOpen(false)}
+      >
+        {openingManualResult ? (
+          <Space direction="vertical" size={16} style={{ width: "100%" }}>
+            <Space wrap>
+              <Tag color={openingManualResult.status === "ready" ? "success" : "processing"}>{openingManualResult.status}</Tag>
+              <Tag>第 {openingManualResult.manualVersionNo} 版</Tag>
+              <Tag>{openingManualResult.targetDmLevel}</Tag>
+              <Tag>{openingManualResult.style}</Tag>
+            </Space>
+            <Card size="small" title="AI 总体验收">
+              {validationNumber(manualOverallValidation(openingManualResult.validationResult), "score") == null ? (
+                <Typography.Text type="secondary">暂无审核结果，可能是旧版本手册或后台仍在生成中。</Typography.Text>
+              ) : (
+                <Space direction="vertical" size={14} style={{ width: "100%" }}>
+                  <Space wrap>
+                    <Tag color={manualOverallValidation(openingManualResult.validationResult).passed ? "success" : "warning"}>
+                      {manualOverallValidation(openingManualResult.validationResult).passed ? "审核通过" : "需要人工确认"}
+                    </Tag>
+                    <Typography.Text>
+                      总体分数：{percentValue(validationNumber(manualOverallValidation(openingManualResult.validationResult), "score"))} 分
+                    </Typography.Text>
+                    {validationText(manualOverallValidation(openingManualResult.validationResult), "reason") ? (
+                      <Typography.Text type="secondary">{validationText(manualOverallValidation(openingManualResult.validationResult), "reason")}</Typography.Text>
+                    ) : null}
+                  </Space>
+                  <Row gutter={[12, 12]}>
+                    {[
+                      ["completeness", "完整度"],
+                      ["actionability", "可执行性"],
+                      ["faithfulness", "资料忠实度"],
+                      ["spoilerSafety", "剧透安全"],
+                    ].map(([key, label]) => (
+                      <Col xs={24} sm={12} key={key}>
+                        <Typography.Text type="secondary">{label}</Typography.Text>
+                        <Progress percent={percentValue(validationNumber(manualOverallValidation(openingManualResult.validationResult), key))} size="small" />
+                      </Col>
+                    ))}
+                  </Row>
+                  {[
+                    ["missingSections", "缺失内容"],
+                    ["riskNotes", "风险提醒"],
+                    ["suggestions", "优化建议"],
+                  ].map(([key, title]) => {
+                    const items = validationStringList(manualOverallValidation(openingManualResult.validationResult), key);
+                    return items.length ? (
+                      <div key={key}>
+                        <Typography.Text strong>{title}</Typography.Text>
+                        <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>
+                          {items.map((item) => <li key={item}>{item}</li>)}
+                        </ul>
+                      </div>
+                    ) : null;
+                  })}
+                </Space>
+              )}
+            </Card>
+            {Object.keys(manualScriptFacts(openingManualResult.validationResult)).length ? (
+              <Card size="small" title="全局事实锚点">
+                <Descriptions column={{ xs: 1, sm: 2 }} size="small">
+                  <Descriptions.Item label="剧本名称">{validationText(manualScriptFacts(openingManualResult.validationResult), "scriptName") || "暂无"}</Descriptions.Item>
+                  <Descriptions.Item label="人数">{validationText(manualScriptFacts(openingManualResult.validationResult), "playerCount") || "暂无"}</Descriptions.Item>
+                  <Descriptions.Item label="时长">{validationText(manualScriptFacts(openingManualResult.validationResult), "duration") || "暂无"}</Descriptions.Item>
+                  <Descriptions.Item label="类型">{validationText(manualScriptFacts(openingManualResult.validationResult), "genre") || "暂无"}</Descriptions.Item>
+                </Descriptions>
+                {[
+                  ["coreMechanics", "核心机制"],
+                  ["keyRelationships", "关键人物关系"],
+                  ["timeline", "关键时间线"],
+                  ["endingConditions", "结局/结算条件"],
+                  ["spoilerWarnings", "剧透隔离提醒"],
+                  ["conflicts", "冲突信息"],
+                  ["unknowns", "需人工确认"],
+                ].map(([key, title]) => {
+                  const items = validationStringList(manualScriptFacts(openingManualResult.validationResult), key);
+                  return items.length ? (
+                    <div key={key} style={{ marginTop: 12 }}>
+                      <Typography.Text strong>{title}</Typography.Text>
+                      <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>
+                        {items.map((item) => <li key={item}>{item}</li>)}
+                      </ul>
+                    </div>
+                  ) : null;
+                })}
+              </Card>
+            ) : null}
+            <Card size="small" title="Markdown 预览">
+              <XMarkdown
+                content={openingManualResult.markdown ?? openingManualResult.markdownPreview ?? "暂无内容"}
+                openLinksInNewTab
+                escapeRawHtml
+              />
+            </Card>
+          </Space>
         ) : null}
       </Drawer>
       <Modal
