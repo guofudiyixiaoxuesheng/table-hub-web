@@ -9,7 +9,7 @@ import { KNOWLEDGE_RESOURCE_OPTIONS, SCRIPT_GENRE_OPTIONS, type KnowledgeDocumen
 import styles from "./knowledge-dashboard.module.css";
 
 const resourceLabels = new Map(KNOWLEDGE_RESOURCE_OPTIONS.map((item) => [item.value, item.label]));
-const scriptGenreLabels = new Map(SCRIPT_GENRE_OPTIONS.map((item) => [item.value, item.label]));
+const scriptGenreLabels = new Map<string, string>(SCRIPT_GENRE_OPTIONS.map((item) => [item.value, item.label]));
 const aiStatusColor = new Map([
   ["ready", "success"],
   ["processing", "processing"],

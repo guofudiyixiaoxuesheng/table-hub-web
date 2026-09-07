@@ -220,23 +220,30 @@ export function SessionList() {
 
   const applyMarketingToForm = (asset: ScriptMarketingAssetResult) => {
     const detailImageUrls = asset.detailImageUrls ?? [];
-    form.setFieldsValue({
-      title: asset.title,
-      description: asset.detailCopy,
+    const defaults = asset.sessionFormDefaults ?? {};
+    const formValues: Partial<GameSessionPayload> = {
+      title: defaults.title || asset.title,
+      description: defaults.description || asset.detailCopy,
       coverImageSource: asset.coverImageUrl ? "ai_generated" : "manual",
-    coverImageUrl: asset.coverImageUrl ?? undefined,
+      coverImageUrl: asset.coverImageUrl ?? undefined,
       detailImageSource: detailImageUrls.length ? "ai_generated" : "manual",
       detailImageUrls,
       notes: [
         "AI 运营物料正式版本：",
         `版本：V${asset.versionNo ?? "-"}`,
+        defaults.notes ? `AI 场次建议：${defaults.notes}` : "",
         `中文关键词：${asset.sellingPoints.join("、")}`,
         `适合人群：${asset.suitablePlayers.join("、")}`,
         `标签：${asset.tags.join("、")}`,
         `主图 Prompt：${asset.coverPrompt}`,
         `风险提醒：${asset.riskNotes.join("、")}`,
-      ].join("\n"),
-    });
+      ].filter(Boolean).join("\n"),
+    };
+    if (typeof defaults.durationMinutes === "number") formValues.durationMinutes = defaults.durationMinutes;
+    if (typeof defaults.capacity === "number") formValues.capacity = defaults.capacity;
+    if (typeof defaults.minPlayers === "number") formValues.minPlayers = defaults.minPlayers;
+    if (typeof defaults.priceYuan === "number") formValues.priceCents = defaults.priceYuan;
+    form.setFieldsValue(formValues);
     setMarketingResult(asset);
     messageApi.success(asset.coverImageUrl || detailImageUrls.length ? "已填充文字和 AI 图片" : "已填充文字；如需图片，请先在知识库详情生成");
   };

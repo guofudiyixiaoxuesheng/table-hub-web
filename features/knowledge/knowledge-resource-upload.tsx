@@ -88,7 +88,7 @@ export function KnowledgeResourceUpload({ initialDraft }: { initialDraft?: Uploa
   const [progress, setProgress] = useState(0);
   const [progressLabel, setProgressLabel] = useState("准备上传");
   const [progressTip, setProgressTip] = useState("选择文件夹后，点击上传会先读取文件并计算 SHA256 指纹。");
-  const [scriptGenreOptions, setScriptGenreOptions] = useState([...SCRIPT_GENRE_OPTIONS]);
+  const [scriptGenreOptions, setScriptGenreOptions] = useState<Array<{ label: string; value: string }>>([...SCRIPT_GENRE_OPTIONS]);
   const [messageApi, contextHolder] = message.useMessage();
   const inspectTimerRef = useRef<number | null>(null);
   const uploadIdempotency = useIdempotencyKey([fileList.length]);

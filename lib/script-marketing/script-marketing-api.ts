@@ -9,6 +9,16 @@ export type ScriptMarketingGeneratePayload = {
   extraRequirement?: string | null;
 };
 
+export type ScriptMarketingSessionFormDefaults = Partial<{
+  title: string;
+  description: string;
+  durationMinutes: number;
+  capacity: number;
+  minPlayers: number;
+  priceYuan: number;
+  notes: string;
+}>;
+
 export type ScriptMarketingAssetResult = {
   documentId: string;
   versionId?: string | null;
@@ -26,6 +36,7 @@ export type ScriptMarketingAssetResult = {
   detailCopy: string;
   detailImagePrompts: string[];
   detailImageUrls?: string[];
+  sessionFormDefaults?: ScriptMarketingSessionFormDefaults;
   imageStatus?: "not_started" | "generating" | "ready" | "failed" | string;
   imageErrorMessage?: string | null;
   riskNotes: string[];

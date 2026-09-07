@@ -38,13 +38,13 @@ import {
   type ParsedMarkdownResult,
 } from "@/lib/oss/knowledge-resource-types";
 import { approveScriptMarketingAsset, generateScriptMarketingAssets, generateScriptMarketingImages, listScriptMarketingAssets, type ScriptMarketingAssetResult } from "@/lib/script-marketing/script-marketing-api";
-import { deleteOpeningManual, generateOpeningManual, getOpeningManual, listOpeningManuals, type OpeningManualResult } from "@/lib/script-opening-manual/script-opening-manual-api";
+import { generateOpeningManual, getOpeningManual, listOpeningManuals, type OpeningManualResult } from "@/lib/script-opening-manual/script-opening-manual-api";
 import { approveScriptProfile, generateScriptProfile, getScriptProfileByDocument, updateScriptProfile, type ScriptProfileResult } from "@/lib/script-profile/script-profile-api";
 import { ScriptMarketingResult } from "@/features/script-marketing/script-marketing-result";
 import styles from "./knowledge-dashboard.module.css";
 
 const resourceLabels = new Map(KNOWLEDGE_RESOURCE_OPTIONS.map((item) => [item.value, item.label]));
-const scriptGenreLabels = new Map(SCRIPT_GENRE_OPTIONS.map((item) => [item.value, item.label]));
+const scriptGenreLabels = new Map<string, string>(SCRIPT_GENRE_OPTIONS.map((item) => [item.value, item.label]));
 const chunkTypeLabels: Record<string, string> = {
   story: "剧情",
   task: "任务",
@@ -182,6 +182,74 @@ function manualScriptFacts(validation: Record<string, unknown>): Record<string, 
   return asRecord(validation.scriptFacts);
 }
 
+function diagnosticValue(item: Record<string, unknown>, key: string): string {
+  const value = item[key];
+  return typeof value === "string" ? value : "";
+}
+
+function diagnosticNumber(item: Record<string, unknown>, key: string): number {
+  const value = item[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function diagnosticSources(item: Record<string, unknown>): string[] {
+  const value = item.sources;
+  return Array.isArray(value) ? value.map((source) => String(source)).filter(Boolean) : [];
+}
+
+function recordText(item: Record<string, unknown>, key: string): string {
+  const value = item[key];
+  if (typeof value === "number") return String(value);
+  return typeof value === "string" ? value : "";
+}
+
+function recordNumber(item: Record<string, unknown>, key: string): number | null {
+  const value = item[key];
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function recordStringList(item: Record<string, unknown>, key: string): string[] {
+  const value = item[key];
+  return Array.isArray(value) ? value.map((part) => String(part)).filter(Boolean) : [];
+}
+
+function relationshipDetailText(record: Record<string, unknown>): string {
+  return recordText(record, "relationshipArc")
+    || recordText(record, "description")
+    || recordText(record, "playerExperience")
+    || recordText(record, "dmNotes")
+    || recordText(record, "notes")
+    || "暂无";
+}
+
+function isCoreRelationship(record: Record<string, unknown>): boolean {
+  if (record.isOfficialPair === true) return true;
+  const relation = `${recordText(record, "relation")} ${recordText(record, "subType")} ${relationshipDetailText(record)}`;
+  const confidence = recordNumber(record, "confidence") ?? 0;
+  const coreKeywords = ["官配", "恋人", "爱情", "感情线", "青梅竹马", "灵魂伴侣", "知己", "守护", "救赎"];
+  return confidence >= 90 && coreKeywords.some((keyword) => relation.includes(keyword));
+}
+
+function relationshipPriority(record: Record<string, unknown>, index: number): number {
+  const explicitPriority = recordNumber(record, "displayPriority");
+  if (explicitPriority !== null) return explicitPriority;
+  if (isCoreRelationship(record)) return index + 1;
+  return 100 + index;
+}
+
+function relationshipImportance(record: Record<string, unknown>): number {
+  return recordNumber(record, "importance") ?? recordNumber(record, "confidence") ?? 0;
+}
+
+function relationshipEvidenceStrength(record: Record<string, unknown>): number {
+  return recordNumber(record, "evidenceStrength") ?? recordNumber(record, "confidence") ?? 0;
+}
+
 export function KnowledgeResourceDetail({ documentId }: { documentId: string }) {
   const [document, setDocument] = useState<KnowledgeDocumentListItem | null>(null);
   const [manifest, setManifest] = useState<KnowledgeDocumentManifest | null>(null);
@@ -223,7 +291,6 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
   const [openingManualOpen, setOpeningManualOpen] = useState(false);
   const [openingManualResult, setOpeningManualResult] = useState<OpeningManualResult | null>(null);
   const [openingManualVersions, setOpeningManualVersions] = useState<OpeningManualResult[]>([]);
-  const [openingManualDeletingId, setOpeningManualDeletingId] = useState<string | null>(null);
   const [scriptProfile, setScriptProfile] = useState<ScriptProfileResult | null>(null);
   const [scriptProfileLoading, setScriptProfileLoading] = useState(false);
   const [scriptProfileOpen, setScriptProfileOpen] = useState(false);
@@ -478,6 +545,7 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
       materialChecklist: scriptProfile.materialChecklist,
       openingRisks: scriptProfile.openingRisks,
       spoilerNotes: scriptProfile.spoilerNotes,
+      relationshipsJson: JSON.stringify(scriptProfile.relationships ?? [], null, 2),
     });
     setScriptProfileOpen(true);
   };
@@ -587,32 +655,6 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
     } catch (error) {
       messageApi.error(error instanceof Error ? error.message : "主持人手册详情加载失败");
     }
-  };
-
-  const confirmDeleteManual = (manual: OpeningManualResult) => {
-    modalApi.confirm({
-      title: "确认删除这个主持人手册？",
-      content: `将删除「${manual.title}」第 ${manual.manualVersionNo} 版。不会删除原始知识库资料。`,
-      okText: "删除",
-      okButtonProps: { danger: true },
-      cancelText: "取消",
-      onOk: async () => {
-        setOpeningManualDeletingId(manual.id);
-        try {
-          await deleteOpeningManual(manual.id);
-          setOpeningManualVersions((current) => current.filter((item) => item.id !== manual.id));
-          if (openingManualResult?.id === manual.id) {
-            setOpeningManualResult(null);
-            setOpeningManualOpen(false);
-          }
-          messageApi.success("主持人手册已删除");
-        } catch (error) {
-          messageApi.error(error instanceof Error ? error.message : "主持人手册删除失败");
-        } finally {
-          setOpeningManualDeletingId(null);
-        }
-      },
-    });
   };
 
   const reloadFile = async (record: KnowledgeManifestFile) => {
@@ -799,9 +841,34 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
                   </Descriptions.Item>
                   <Descriptions.Item label="时长">{scriptProfile.durationMinutes ? `${scriptProfile.durationMinutes} 分钟` : "暂无"}</Descriptions.Item>
                   <Descriptions.Item label="DM难度">{scriptProfile.dmDifficulty ?? "暂无"}</Descriptions.Item>
+                  <Descriptions.Item label="人物关系">{scriptProfile.relationships?.length ?? 0} 条</Descriptions.Item>
+                  <Descriptions.Item label="官配/核心关系">
+                    {scriptProfile.relationships?.filter((item) => Boolean(item.isOfficialPair)).length ?? 0} 条
+                  </Descriptions.Item>
                 </Descriptions>
                 {scriptProfile.summary ? <Typography.Paragraph ellipsis={{ rows: 2 }}>{scriptProfile.summary}</Typography.Paragraph> : null}
                 {scriptProfile.errorMessage ? <Typography.Text type="warning">{scriptProfile.errorMessage}</Typography.Text> : null}
+                <Card size="small" title="资料诊断">
+                  {scriptProfile.retrievalDiagnostics?.length ? (
+                    <Row gutter={[8, 8]}>
+                      {scriptProfile.retrievalDiagnostics.map((item) => (
+                        <Col xs={24} sm={12} md={8} key={item.key ?? item.title}>
+                          <Space direction="vertical" size={4} style={{ width: "100%" }}>
+                            <Space>
+                              <Tag color={item.hasContext ? "success" : "warning"}>
+                                {item.hasContext ? "已找到" : "需补充"}
+                              </Tag>
+                              <Typography.Text>{item.title ?? item.key}</Typography.Text>
+                            </Space>
+                            <Typography.Text type="secondary">命中 {item.hitCount ?? 0} 条资料</Typography.Text>
+                          </Space>
+                        </Col>
+                      ))}
+                    </Row>
+                  ) : (
+                    <Typography.Text type="secondary">暂无资料诊断数据。请点击“重新生成”，系统会重新召回并保存每一路命中的资料。</Typography.Text>
+                  )}
+                </Card>
                 <Space wrap>
                   <Button type="primary" loading={scriptProfileLoading} onClick={openScriptProfileDrawer}>查看/编辑档案</Button>
                   <Button loading={scriptProfileLoading} disabled={scriptProfile.reviewStatus === "approved"} onClick={() => void confirmApproveScriptProfile()}>
@@ -827,36 +894,38 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
         <Card className="surface-card" title="AI 运营物料">
           <Space direction="vertical" size={12} style={{ width: "100%" }}>
             <Typography.Text type="secondary">
-              基于当前剧本资料生成玩家可见的宣传标题、卖点、详情文案，以及主图/详情图 Prompt。生成结果仅作为草稿，需要店长确认后再使用。
+              单剧本快捷入口。正式的朋友圈文案、宣传图和创建场次填充内容，建议到「运营物料」工作台统一管理。
             </Typography.Text>
-            <Button
-              type="primary"
-              icon={<BulbOutlined />}
-              loading={marketingLoading}
-              disabled={!aiReady}
-              onClick={() => void generateMarketing()}
-            >
-              AI 生成宣传物料
-            </Button>
+            <Row gutter={[12, 12]}>
+              <Col xs={24} sm={8}>
+                <Statistic title="正式物料" value={marketingVersions.length} suffix="个版本" />
+              </Col>
+              <Col xs={24} sm={8}>
+                <Statistic title="最新状态" value={marketingVersions.length ? "可使用" : "待生成"} />
+              </Col>
+              <Col xs={24} sm={8}>
+                <Statistic title="图片" value={marketingVersions.some((item) => item.imageStatus === "ready") ? "已就绪" : "待生成"} />
+              </Col>
+            </Row>
+            <Space wrap>
+              <Button
+                type="primary"
+                icon={<BulbOutlined />}
+                loading={marketingLoading}
+                disabled={!aiReady}
+                onClick={() => void generateMarketing()}
+              >
+                生成当前剧本物料
+              </Button>
+              <Link href="/knowledge/marketing">
+                <Button>去运营物料工作台</Button>
+              </Link>
+              {marketingVersions.length ? (
+                <Button onClick={() => { setMarketingResult(marketingVersions[0]); setMarketingOpen(true); }}>查看最新正式版</Button>
+              ) : null}
+            </Space>
             {!aiReady ? <Typography.Text type="secondary">请先完成“一键整理给 AI 使用”，再生成宣传物料。</Typography.Text> : null}
-            {marketingVersions.length ? (
-              <Collapse
-                size="small"
-                items={marketingVersions.map((item, index) => ({
-                  key: `${item.versionId}-${index}`,
-                  label: `正式版本 ${marketingVersions.length - index}：${item.title}`,
-                  children: (
-                    <ScriptMarketingResult
-                      result={item}
-                      onGenerateImages={() => generateMarketingImages(item)}
-                      generatingImages={marketingImageLoadingId === item.assetId}
-                    />
-                  ),
-                }))}
-              />
-            ) : (
-              <Typography.Text type="secondary">暂无正式版本。生成草稿后点击“确定使用”，会加入这里方便店长后续选择。</Typography.Text>
-            )}
+            {!marketingVersions.length ? <Typography.Text type="secondary">暂无正式版本。生成草稿并确认使用后，创建场次可以直接选择它填充表单。</Typography.Text> : null}
           </Space>
         </Card>
       )}
@@ -864,8 +933,19 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
         <Card className="surface-card" title="AI 主持人手册">
           <Space direction="vertical" size={12} style={{ width: "100%" }}>
             <Typography.Text type="secondary">
-              基于当前剧本资料生成 DM 可用的开本准备、分幕流程、控场话术和注意事项。当前先用于跑通生成链路，后续会接入正式 RAG 内容和店长审批。
+              单剧本快捷入口。完整的 DM 手册版本、开本时间线和审核结果，建议到「DM 主持手册」工作台统一查看。
             </Typography.Text>
+            <Row gutter={[12, 12]}>
+              <Col xs={24} sm={8}>
+                <Statistic title="手册版本" value={openingManualVersions.length} suffix="个" />
+              </Col>
+              <Col xs={24} sm={8}>
+                <Statistic title="最新状态" value={openingManualVersions[0]?.status ?? "待生成"} />
+              </Col>
+              <Col xs={24} sm={8}>
+                <Statistic title="时间线" value={openingManualVersions[0]?.timeline?.length ?? 0} suffix="个节点" />
+              </Col>
+            </Row>
             <Space wrap>
               <Button
                 type="primary"
@@ -874,58 +954,20 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
                 disabled={!aiReady}
                 onClick={() => void generateManual()}
               >
-                生成主持人手册
+                生成当前剧本手册
               </Button>
               {openingManualResult ? (
                 <Button onClick={() => setOpeningManualOpen(true)}>查看本次结果</Button>
               ) : null}
-              <Button onClick={loadDetail}>刷新列表</Button>
+              {openingManualVersions[0] ? (
+                <Button onClick={() => void openManualDetail(openingManualVersions[0].id)}>查看最新手册</Button>
+              ) : null}
+              <Link href="/knowledge/manuals">
+                <Button>去 DM 主持手册工作台</Button>
+              </Link>
             </Space>
             {!aiReady ? <Typography.Text type="secondary">请先完成“一键整理给 AI 使用”，再生成主持人手册。</Typography.Text> : null}
-            {openingManualResult ? (
-              <Space wrap>
-                <Tag color={openingManualResult.status === "ready" ? "success" : "processing"}>{openingManualResult.status}</Tag>
-                <Tag>第 {openingManualResult.manualVersionNo} 版</Tag>
-                <Typography.Text>{openingManualResult.title}</Typography.Text>
-              </Space>
-            ) : (
-              <Typography.Text type="secondary">暂无生成记录。点击按钮后，会调用刚才新增的创建任务接口。</Typography.Text>
-            )}
-            <Table<OpeningManualResult>
-              rowKey="id"
-              size="small"
-              tableLayout="fixed"
-              pagination={false}
-              dataSource={openingManualVersions}
-              locale={{ emptyText: <Empty description="暂无主持人手册版本" /> }}
-              scroll={{ x: 760 }}
-              columns={[
-                { title: "版本", dataIndex: "manualVersionNo", width: 80, render: (value) => <Tag>第 {value} 版</Tag> },
-                { title: "标题", dataIndex: "title", width: 240, ellipsis: true, render: (title) => <EllipsisText value={title} /> },
-                { title: "状态", dataIndex: "status", width: 100, render: (status) => <Tag color={status === "ready" ? "success" : status === "failed" ? "error" : "processing"}>{status}</Tag> },
-                { title: "适用", dataIndex: "targetDmLevel", width: 100, render: (value) => <Tag>{value === "newbie" ? "新手DM" : "老手DM"}</Tag> },
-                { title: "创建时间", dataIndex: "createdAt", width: 180, render: (value) => new Date(value).toLocaleString("zh-CN") },
-                {
-                  title: "操作",
-                  width: 150,
-                  fixed: "right",
-                  render: (_, record) => (
-                    <Space size={4}>
-                      <Button type="text" size="small" onClick={() => void openManualDetail(record.id)}>详情</Button>
-                      <Button
-                        type="text"
-                        danger
-                        size="small"
-                        loading={openingManualDeletingId === record.id}
-                        onClick={() => confirmDeleteManual(record)}
-                      >
-                        删除
-                      </Button>
-                    </Space>
-                  ),
-                },
-              ]}
-            />
+            {!openingManualVersions.length ? <Typography.Text type="secondary">暂无生成记录。生成后会进入 DM 主持手册工作台，方便后续培训和开本复用。</Typography.Text> : null}
           </Space>
         </Card>
       )}
@@ -958,7 +1000,7 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
                     />
                     <Select<FileStatusFilter>
                       value={fileStatusFilter}
-                      options={fileStatusOptions}
+                      options={[...fileStatusOptions]}
                       onChange={setFileStatusFilter}
                       style={{ width: 140 }}
                     />
@@ -1209,7 +1251,7 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
       </Drawer>
       <Drawer
         title="剧本档案"
-        width={780}
+        width={920}
         open={scriptProfileOpen}
         onClose={() => setScriptProfileOpen(false)}
         extra={<Button type="primary" loading={scriptProfileLoading} onClick={() => void submitScriptProfile()}>保存</Button>}
@@ -1280,11 +1322,115 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
           <Form.Item name="spoilerNotes" label="剧透注意事项">
             <Select mode="tags" placeholder="输入后回车" />
           </Form.Item>
+          <Form.Item label="人物关系">
+            {scriptProfile?.relationships?.length ? (
+              <Table<Record<string, unknown>>
+                rowKey={(record, index) => `${recordText(record, "from")}-${recordText(record, "to")}-${index}`}
+                size="small"
+                pagination={false}
+                scroll={{ x: 1460 }}
+                dataSource={[...scriptProfile.relationships].sort((left, right) => (
+                  relationshipPriority(left, 0) - relationshipPriority(right, 0)
+                  || Number(isCoreRelationship(right)) - Number(isCoreRelationship(left))
+                  || relationshipImportance(right) - relationshipImportance(left)
+                  || relationshipEvidenceStrength(right) - relationshipEvidenceStrength(left)
+                  || (recordNumber(right, "confidence") ?? 0) - (recordNumber(left, "confidence") ?? 0)
+                ))}
+                columns={[
+                  {
+                    title: "排序",
+                    width: 70,
+                    fixed: "left",
+                    render: (_, record, index) => relationshipPriority(record, index),
+                  },
+                  {
+                    title: "官配",
+                    width: 80,
+                    fixed: "left",
+                    render: (_, record) => (
+                      <Tag color={isCoreRelationship(record) ? "magenta" : "default"}>
+                        {isCoreRelationship(record) ? "核心" : "普通"}
+                      </Tag>
+                    ),
+                  },
+                  { title: "人物A", width: 100, fixed: "left", render: (_, record) => recordText(record, "from") || "未知" },
+                  { title: "人物B", width: 100, render: (_, record) => recordText(record, "to") || "未知" },
+                  { title: "关系", width: 110, render: (_, record) => <Tag color="purple">{recordText(record, "relation") || "未标注"}</Tag> },
+                  { title: "细分", width: 130, ellipsis: true, render: (_, record) => <EllipsisText value={recordText(record, "subType") || "暂无"} /> },
+                  {
+                    title: "情绪基调",
+                    width: 180,
+                    render: (_, record) => {
+                      const tones = recordStringList(record, "emotionTone");
+                      return tones.length ? (
+                        <Space size={4} wrap={false}>
+                          {tones.slice(0, 3).map((tone) => <Tag key={tone} color="gold">{tone}</Tag>)}
+                        </Space>
+                      ) : "暂无";
+                    },
+                  },
+                  { title: "关系弧线", width: 240, ellipsis: true, render: (_, record) => <EllipsisText value={relationshipDetailText(record)} /> },
+                  { title: "玩家体验", width: 220, ellipsis: true, render: (_, record) => <EllipsisText value={recordText(record, "playerExperience") || "暂无"} /> },
+                  { title: "DM提醒", width: 220, ellipsis: true, render: (_, record) => <EllipsisText value={recordText(record, "dmNotes") || "暂无"} /> },
+                  {
+                    title: "剧透",
+                    width: 90,
+                    render: (_, record) => {
+                      const level = recordText(record, "spoilerLevel") || "unknown";
+                      const color = level === "high" ? "error" : level === "medium" ? "warning" : level === "low" ? "success" : "default";
+                      return <Tag color={color}>{level}</Tag>;
+                    },
+                  },
+                  { title: "重要度", width: 90, render: (_, record) => relationshipImportance(record) || "暂无" },
+                  { title: "证据", width: 90, render: (_, record) => relationshipEvidenceStrength(record) || "暂无" },
+                  { title: "置信度", width: 90, render: (_, record) => recordNumber(record, "confidence") ?? "暂无" },
+                  { title: "来源", width: 180, ellipsis: true, render: (_, record) => <EllipsisText value={recordText(record, "source") || "暂无"} /> },
+                ]}
+              />
+            ) : (
+              <Typography.Text type="secondary">暂无人物关系。可以重新生成档案，或后续在这里补充人工编辑能力。</Typography.Text>
+            )}
+          </Form.Item>
           {scriptProfile?.sources.length ? (
             <Card size="small" title="引用来源">
               <Space wrap>
                 {scriptProfile.sources.map((source) => <Tag key={source}>{source}</Tag>)}
               </Space>
+            </Card>
+          ) : null}
+          {scriptProfile ? (
+            <Card size="small" title="资料诊断明细">
+              <Table<Record<string, unknown>>
+                rowKey={(record) => diagnosticValue(record, "key") || diagnosticValue(record, "title")}
+                size="small"
+                pagination={false}
+                dataSource={(scriptProfile.retrievalDiagnostics ?? []) as Record<string, unknown>[]}
+                locale={{ emptyText: <Empty description="暂无诊断数据，请重新生成剧本档案" /> }}
+                columns={[
+                  { title: "资料类型", width: 120, render: (_, record) => diagnosticValue(record, "title") || diagnosticValue(record, "key") || "未知" },
+                  {
+                    title: "状态",
+                    width: 100,
+                    render: (_, record) => (
+                      <Tag color={record.hasContext ? "success" : "warning"}>{record.hasContext ? "已找到" : "需补充"}</Tag>
+                    ),
+                  },
+                  { title: "命中", width: 80, render: (_, record) => `${diagnosticNumber(record, "hitCount")} 条` },
+                  {
+                    title: "来源",
+                    render: (_, record) => {
+                      const sources = diagnosticSources(record);
+                      return sources.length ? (
+                        <Space size={4} wrap>
+                          {sources.map((source) => <Tag key={source}>{source}</Tag>)}
+                        </Space>
+                      ) : (
+                        <Typography.Text type="secondary">暂无</Typography.Text>
+                      );
+                    },
+                  },
+                ]}
+              />
             </Card>
           ) : null}
         </Form>
@@ -1303,6 +1449,39 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
               <Tag>{openingManualResult.targetDmLevel}</Tag>
               <Tag>{openingManualResult.style}</Tag>
             </Space>
+            <Card size="small" title="开本时间线">
+              {openingManualResult.timeline?.length ? (
+                <Timeline
+                  items={openingManualResult.timeline.map((item) => ({
+                    color: "blue",
+                    children: (
+                      <Space direction="vertical" size={6} style={{ width: "100%" }}>
+                        <Space wrap>
+                          <Tag color="blue">{item.stage}</Tag>
+                          {item.source ? <Typography.Text type="secondary">来源：{item.source}</Typography.Text> : null}
+                        </Space>
+                        <Typography.Text strong>{item.dmAction}</Typography.Text>
+                        {item.playerAction ? (
+                          <Typography.Text type="secondary">玩家动作：{item.playerAction}</Typography.Text>
+                        ) : null}
+                        {item.materials.length ? (
+                          <Space size={4} wrap>
+                            {item.materials.map((material) => <Tag key={material}>{material}</Tag>)}
+                          </Space>
+                        ) : null}
+                        {item.riskNotes.length ? (
+                          <Typography.Text type="warning">提醒：{item.riskNotes.join("；")}</Typography.Text>
+                        ) : null}
+                      </Space>
+                    ),
+                  }))}
+                />
+              ) : (
+                <Typography.Text type="secondary">
+                  暂无结构化时间线。重新生成主持人手册后，系统会从剧本资料里提炼开本阶段。
+                </Typography.Text>
+              )}
+            </Card>
             <Card size="small" title="AI 总体验收">
               {validationNumber(manualOverallValidation(openingManualResult.validationResult), "score") == null ? (
                 <Typography.Text type="secondary">暂无审核结果，可能是旧版本手册或后台仍在生成中。</Typography.Text>

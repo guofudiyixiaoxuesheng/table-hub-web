@@ -20,7 +20,7 @@ type AuthContextValue = {
     storeName?: string;
     inviteCode?: string;
   }) => Promise<void>;
-  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  changePassword: (currentPassword: string | undefined, newPassword: string) => Promise<void>;
   logout: () => Promise<void>;
 };
 

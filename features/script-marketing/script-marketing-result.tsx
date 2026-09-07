@@ -21,6 +21,7 @@ export function ScriptMarketingResult({
   generatingImages?: boolean;
 }) {
   const detailImageUrls = result.detailImageUrls ?? [];
+  const sessionDefaults = result.sessionFormDefaults ?? {};
   const imageStatusLabel = {
     not_started: "未生成图片",
     generating: "图片生成中",
@@ -83,6 +84,18 @@ export function ScriptMarketingResult({
                     {index + 1}. {prompt}
                   </Typography.Paragraph>
                 ))}
+              </Space>
+            ),
+          },
+          {
+            key: "sessionDefaults",
+            label: "创建场次填充建议",
+            children: (
+              <Space direction="vertical" size={8} style={{ width: "100%" }}>
+                <Typography.Text type="secondary">店长创建场次时，选择正式物料后会优先填充这些字段。</Typography.Text>
+                <Typography.Paragraph copyable={{ text: JSON.stringify(sessionDefaults, null, 2) }} style={{ whiteSpace: "pre-wrap" }}>
+                  {Object.keys(sessionDefaults).length ? JSON.stringify(sessionDefaults, null, 2) : "暂无场次填充建议"}
+                </Typography.Paragraph>
               </Space>
             ),
           },

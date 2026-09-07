@@ -13,6 +13,15 @@ export type OpeningManualSection = {
   sourceCount: number;
 };
 
+export type OpeningManualTimelineItem = {
+  stage: string;
+  dmAction: string;
+  playerAction?: string;
+  materials: string[];
+  riskNotes: string[];
+  source?: string | null;
+};
+
 export type OpeningManualResult = {
   id: string;
   documentId: string;
@@ -23,6 +32,7 @@ export type OpeningManualResult = {
   targetDmLevel: string;
   status: "draft" | "generating" | "ready" | "failed" | "approved" | string;
   sections: OpeningManualSection[];
+  timeline: OpeningManualTimelineItem[];
   sources: string[];
   markdownPreview?: string | null;
   markdown?: string | null;

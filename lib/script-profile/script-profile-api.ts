@@ -19,11 +19,19 @@ export type ScriptProfileResult = {
   suitablePlayers: string[];
   coreMechanics: string[];
   roles: Record<string, unknown>[];
+  relationships: Record<string, unknown>[];
   materialChecklist: string[];
   openingRisks: string[];
   spoilerNotes: string[];
   sourceChunkIds: string[];
   sources: string[];
+  retrievalDiagnostics: Array<{
+    key?: string;
+    title?: string;
+    hitCount?: number;
+    hasContext?: boolean;
+    sources?: string[];
+  }>;
   confidenceScore: number | null;
   reviewStatus: "draft" | "needs_review" | "approved" | "failed" | string;
   errorMessage: string | null;
@@ -52,6 +60,7 @@ export type ScriptProfileUpdatePayload = Partial<{
   suitablePlayers: string[];
   coreMechanics: string[];
   roles: Record<string, unknown>[];
+  relationships: Record<string, unknown>[];
   materialChecklist: string[];
   openingRisks: string[];
   spoilerNotes: string[];

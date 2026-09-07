@@ -1,0 +1,11 @@
+.toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) 160px 96px;
+  gap: 10px;
+}
+
+@media (max-width: 640px) {
+  .toolbar {
+    grid-template-columns: 1fr;
+  }
+}
