@@ -507,17 +507,17 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
     if (!document) return;
     setMarketingLoading(true);
     try {
-      const result = await generateScriptMarketingAssets(document.id, {
+      await generateScriptMarketingAssets(document.id, {
         purpose: "script_profile",
         tone: "新手友好、商业宣传、适合门店 H5 展示",
         avoidSpoilers: true,
         extraRequirement,
       });
-      setMarketingResult(result);
-      setMarketingOpen(true);
+      setMarketingResult(null);
+      setMarketingOpen(false);
       setMarketingFeedbackOpen(false);
       setMarketingFeedback("");
-      messageApi.success("AI 运营物料已生成");
+      messageApi.success("AI 运营物料已在后台生成，请稍后到运营物料页手动刷新查看");
     } catch (error) {
       messageApi.error(error instanceof Error ? error.message : "AI 运营物料生成失败");
     } finally {
@@ -613,11 +613,11 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
   const generateMarketingImages = (asset: ScriptMarketingAssetResult) => {
     if (!asset.assetId) return;
     setMarketingImageLoadingId(asset.assetId);
-    generateScriptMarketingImages(asset.assetId, { includeCover: true, includeDetail: true })
+    generateScriptMarketingImages(asset.assetId, { includeCover: true, includeDetail: false })
       .then((updated) => {
         setMarketingResult((current) => (current?.assetId === updated.assetId ? updated : current));
         setMarketingVersions((current) => current.map((item) => (item.assetId === updated.assetId ? updated : item)));
-        messageApi.success("AI 图片已生成，可在创建场次时直接带入");
+        messageApi.success("主图生成任务已在后台启动，请稍后手动刷新查看结果");
       })
       .catch((error) => {
         messageApi.error(error instanceof Error ? error.message : "AI 图片生成失败");
@@ -1136,7 +1136,7 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
                     <Space orientation="vertical" size={12} style={{ width: "100%" }}>
                       <Space style={{ justifyContent: "space-between", width: "100%" }} wrap>
                         <Space orientation="vertical" size={4}>
-                          <Typography.Text>Embedding 模型：{embeddingResult?.model ?? "text-embedding-v4"}</Typography.Text>
+                          <Typography.Text>Embedding 模型：{embeddingResult?.model ?? "等待后端返回"}</Typography.Text>
                           <Typography.Text type="secondary">维度：{embeddingResult?.dimension ?? 1024}，内容未变化的 chunk 会自动跳过。</Typography.Text>
                         </Space>
                         <Button type="primary" icon={<ClusterOutlined />} loading={embedding} disabled={!document?.activeVersionId || !(chunkResult?.totalChunks || embeddingResult?.totalChunks)} onClick={triggerEmbedding}>建立 AI 索引</Button>

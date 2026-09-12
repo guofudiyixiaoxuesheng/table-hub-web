@@ -2,10 +2,11 @@ import type { ApiEnvelope, AuthSession } from "@/lib/auth/types";
 import { getAccessToken, setAccessToken } from "@/lib/auth/token-store";
 import { appendCurrentStoreId } from "@/lib/store/current-store";
 
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
-  ?? (typeof window === "undefined"
-    ? "http://localhost:8000"
-    : `${window.location.protocol}//${window.location.hostname}:8000`);
+// 浏览器统一通过 Next 的 /api rewrite 转发后端：局域网/HTTPS 页面不必直接访问 :8000。
+// 服务端渲染仍需要一个可直连的后端地址。
+export const API_BASE_URL = typeof window === "undefined"
+  ? (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000")
+  : "";
 
 let refreshRequest: Promise<AuthSession> | null = null;
 const DEFAULT_TIMEOUT_MS = 12000;
@@ -25,6 +26,9 @@ export async function fetchWithTimeout(
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
       throw new Error(`请求超时或被浏览器中断，请稍后重试（${Math.round(timeoutMs / 1000)} 秒）`);
+    }
+    if (error instanceof TypeError && error.message === "Failed to fetch") {
+      throw new Error("无法连接后端服务，请确认后端已启动，并检查前端的 /api 代理配置。");
     }
     throw error;
   } finally {

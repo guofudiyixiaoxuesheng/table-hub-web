@@ -21,6 +21,7 @@ export const navigationItems: NavigationItem[] = [
     children: [
       { href: "/knowledge", label: "知识资源", icon: "knowledge", management: true },
       { href: "/knowledge/marketing", label: "运营物料", icon: "knowledge", management: true },
+      { href: "/knowledge/art-references", label: "美术素材库", icon: "knowledge", management: true },
       { href: "/knowledge/manuals", label: "DM 主持手册", icon: "knowledge", management: true },
       { href: "/knowledge/evaluations", label: "效果评估", icon: "knowledge", management: true },
     ],

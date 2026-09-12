@@ -7,6 +7,14 @@ export type ScriptMarketingGeneratePayload = {
   tone?: string;
   avoidSpoilers?: boolean;
   extraRequirement?: string | null;
+  usageType?: string;
+  usageLabel?: string;
+  styleProfileId?: string | null;
+};
+
+export type ScriptMarketingGenerationTask = {
+  documentId: string;
+  status: "generating" | string;
 };
 
 export type ScriptMarketingSessionFormDefaults = Partial<{
@@ -19,11 +27,48 @@ export type ScriptMarketingSessionFormDefaults = Partial<{
   notes: string;
 }>;
 
+export type ScriptMarketingPlayerCard = Partial<{
+  title: string;
+  subtitle: string;
+  summary: string;
+  coverPrompt: string;
+  coverImageUrl: string;
+}>;
+
+export type ScriptMarketingPlayerDetail = Partial<{
+  detailCopy: string;
+  imagePrompts: string[];
+  imageUrls: string[];
+}>;
+
+export type ScriptMarketingMoments = Partial<{
+  copy: string;
+  posterTitle: string;
+  posterSubtitle: string;
+  posterPrompt: string;
+  posterImageUrl: string;
+}>;
+
+export type ScriptMarketingImageGeneration = {
+  id: string;
+  status: "generating" | "ready" | "failed" | string;
+  includeCover?: boolean;
+  includeDetail?: boolean;
+  createdAt?: string;
+  finishedAt?: string;
+  coverImageUrl?: string | null;
+  detailImageUrls?: string[];
+  finalImagePrompts?: { cover?: string | null; details?: string[]; styleProfileId?: string | null };
+  errorMessage?: string | null;
+};
+
 export type ScriptMarketingAssetResult = {
   documentId: string;
   versionId?: string | null;
   assetId?: string | null;
   versionNo?: number | null;
+  usageType?: string;
+  usageLabel?: string;
   status?: "draft" | "approved" | string;
   managerFeedback?: string | null;
   title: string;
@@ -32,13 +77,19 @@ export type ScriptMarketingAssetResult = {
   suitablePlayers: string[];
   tags: string[];
   coverPrompt: string;
+  styleProfileId?: string | null;
+  finalImagePrompts?: { cover?: string | null; details?: string[]; styleProfileId?: string | null };
   coverImageUrl?: string | null;
   detailCopy: string;
   detailImagePrompts: string[];
   detailImageUrls?: string[];
   sessionFormDefaults?: ScriptMarketingSessionFormDefaults;
+  playerCard?: ScriptMarketingPlayerCard;
+  playerDetail?: ScriptMarketingPlayerDetail;
+  moments?: ScriptMarketingMoments;
   imageStatus?: "not_started" | "generating" | "ready" | "failed" | string;
   imageErrorMessage?: string | null;
+  imageGenerations?: ScriptMarketingImageGeneration[];
   riskNotes: string[];
   sources: string[];
   createdAt?: string | null;
@@ -48,7 +99,7 @@ export type ScriptMarketingAssetResult = {
 const SCRIPT_MARKETING_TIMEOUT_MS = 180_000;
 
 export function generateScriptMarketingAssets(documentId: string, payload: ScriptMarketingGeneratePayload) {
-  return apiFetch<ScriptMarketingAssetResult>(`/api/v1/script-marketing/${documentId}/generate`, {
+  return apiFetch<ScriptMarketingGenerationTask>(`/api/v1/script-marketing/${documentId}/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -70,8 +121,9 @@ export function approveScriptMarketingAsset(assetId: string, managerFeedback?: s
 
 export function generateScriptMarketingImages(
   assetId: string,
-  payload: { includeCover?: boolean; includeDetail?: boolean; promptOverride?: string | null },
+  payload: { includeCover?: boolean; includeDetail?: boolean; promptOverride?: string | null; styleProfileId?: string | null },
 ) {
+  console.log("generateScriptMarketingImages", assetId, payload);
   return apiFetch<ScriptMarketingAssetResult>(`/api/v1/script-marketing/assets/${assetId}/images`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
