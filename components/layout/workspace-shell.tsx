@@ -24,7 +24,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   }, [allowed, loading, router, user]);
 
   if ((loading && !isPublicPath(pathname)) || !allowed) {
-    return <div className={styles.authLoading}><Spin size="large" tip="正在验证登录状态" /></div>;
+    return <div className={styles.authLoading}><Spin size="large" description="正在验证登录状态" /></div>;
   }
 
   return (

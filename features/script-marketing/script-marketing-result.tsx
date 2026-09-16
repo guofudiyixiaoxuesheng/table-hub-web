@@ -36,7 +36,6 @@ export function ScriptMarketingResult({
   const coverImageUrl = playerCard.coverImageUrl || result.coverImageUrl;
   const posterImageUrl = moments.posterImageUrl || coverImageUrl;
   const finalImagePrompts = result.finalImagePrompts ?? {};
-  const imageGenerations = result.imageGenerations ?? [];
   const isPromptPreview = result.imageStatus === "ready"
     && Boolean(finalImagePrompts.cover || finalImagePrompts.details?.length)
     && !coverImageUrl
@@ -73,6 +72,7 @@ export function ScriptMarketingResult({
             </Space>
           ) : null}
           {result.imageErrorMessage ? <Typography.Text type="danger">{result.imageErrorMessage}</Typography.Text> : null}
+          {result.imageStatus === "ready" ? <Typography.Text type="secondary">本次生成的图片已归入当前剧本的图片素材库，可跨物料版本和场次复用。</Typography.Text> : null}
           {(onAdopt || onRegenerate || onGenerateImages) ? (
             <Space wrap>
               {onAdopt ? <Button type="primary" loading={adopting} onClick={onAdopt}>确定使用</Button> : null}
@@ -85,46 +85,6 @@ export function ScriptMarketingResult({
             </Space>
           ) : null}
         </Space>
-      </Card>
-      <Card size="small" title={`图片列表（${imageGenerations.length} 次）`}>
-        {imageGenerations.length ? (
-          <Space direction="vertical" size={12} style={{ width: "100%" }}>
-            {imageGenerations.map((generation, index) => {
-              const urls = [generation.coverImageUrl, ...(generation.detailImageUrls ?? [])].filter(
-                (url): url is string => Boolean(url),
-              );
-              const statusLabel = generation.status === "ready"
-                ? "已生成"
-                : generation.status === "failed"
-                  ? "生成失败"
-                  : "生成中";
-              return (
-                <Card key={generation.id || index} size="small">
-                  <Space direction="vertical" size={8} style={{ width: "100%" }}>
-                    <Space wrap>
-                      <Typography.Text strong>第 {imageGenerations.length - index} 次</Typography.Text>
-                      <Tag color={generation.status === "ready" ? "success" : generation.status === "failed" ? "error" : "processing"}>
-                        {statusLabel}
-                      </Tag>
-                      {generation.createdAt ? <Typography.Text type="secondary">{new Date(generation.createdAt).toLocaleString()}</Typography.Text> : null}
-                    </Space>
-                    {urls.length ? (
-                      <Image.PreviewGroup>
-                        <Space wrap>
-                          {urls.map((url) => (
-                            <Image key={url} src={url} alt="AI 生成图片" style={{ width: 132, height: 176, objectFit: "cover", borderRadius: 10 }} />
-                          ))}
-                        </Space>
-                      </Image.PreviewGroup>
-                    ) : null}
-                    {generation.errorMessage ? <Typography.Text type="danger">{generation.errorMessage}</Typography.Text> : null}
-                    {generation.finalImagePrompts?.cover ? <Typography.Text type="secondary">已保存本次最终提示词，可在下方“实际生图 Prompt”中查看最新一次。</Typography.Text> : null}
-                  </Space>
-                </Card>
-              );
-            })}
-          </Space>
-        ) : <Typography.Text type="secondary">尚无图片生成记录。生成任务启动后会立即出现在这里；请手动点击“刷新”查看结果。</Typography.Text>}
       </Card>
       <Tabs
         defaultActiveKey="session"

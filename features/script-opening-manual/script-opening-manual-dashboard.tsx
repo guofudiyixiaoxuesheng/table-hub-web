@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ClockCircleOutlined, EyeOutlined, FileTextOutlined, ReloadOutlined, WarningOutlined } from "@ant-design/icons";
+import { BulbOutlined, ClockCircleOutlined, EyeOutlined, FileTextOutlined, ReloadOutlined, WarningOutlined } from "@ant-design/icons";
 import { XMarkdown } from "@ant-design/x-markdown";
-import { Button, Card, Col, Drawer, Empty, Input, Progress, Row, Select, Space, Statistic, Table, Tag, Timeline, Tooltip, Typography, message } from "antd";
+import { Button, Card, Col, Drawer, Empty, Form, Input, Progress, Row, Select, Space, Statistic, Table, Tag, Timeline, Tooltip, Typography, message } from "antd";
 import { listKnowledgeDocuments } from "@/lib/oss/knowledge-resource-api";
 import { SCRIPT_GENRE_OPTIONS, type KnowledgeDocumentListItem } from "@/lib/oss/knowledge-resource-types";
-import { getOpeningManual, listOpeningManuals, type OpeningManualResult } from "@/lib/script-opening-manual/script-opening-manual-api";
+import { generateOpeningManual, getOpeningManual, listOpeningManuals, type OpeningManualResult } from "@/lib/script-opening-manual/script-opening-manual-api";
 import styles from "./script-opening-manual-dashboard.module.css";
 
 type ManualStatusFilter = "all" | "ready" | "generating" | "failed" | "none";
@@ -16,6 +16,18 @@ type ManualRow = {
   document: KnowledgeDocumentListItem;
   manuals: OpeningManualResult[];
 };
+
+type ManualGenerationForm = {
+  style: "professional" | "simple" | "training";
+  targetDmLevel: "newbie" | "experienced";
+  extraRequirement?: string;
+};
+
+const generationSuggestions = [
+  "面向首次开本的 DM：每幕写清发放顺序、预计时长、转场话术和常见卡点。",
+  "重点核对每个公共幕次、玩家任务和进入下一幕的触发条件；资料不足处明确标注需人工确认。",
+  "重点补全物料清单、线索发放、私聊安排、规则争议口径与剧透隔离提醒。",
+];
 
 const genreLabels = new Map<string, string>(SCRIPT_GENRE_OPTIONS.map((item) => [item.value, item.label]));
 
@@ -51,6 +63,9 @@ export function ScriptOpeningManualDashboard() {
   const [loading, setLoading] = useState(false);
   const [activeManual, setActiveManual] = useState<OpeningManualResult | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [generationDocument, setGenerationDocument] = useState<KnowledgeDocumentListItem | null>(null);
+  const [generationLoading, setGenerationLoading] = useState(false);
+  const [generationForm] = Form.useForm<ManualGenerationForm>();
   const [messageApi, contextHolder] = message.useMessage();
 
   const loadData = useCallback(async () => {
@@ -104,6 +119,34 @@ export function ScriptOpeningManualDashboard() {
     }
   };
 
+  const openGeneration = (document: KnowledgeDocumentListItem) => {
+    setGenerationDocument(document);
+    generationForm.setFieldsValue({
+      style: "professional",
+      targetDmLevel: "newbie",
+      extraRequirement: generationSuggestions[0],
+    });
+  };
+
+  const submitGeneration = async () => {
+    if (!generationDocument) return;
+    setGenerationLoading(true);
+    try {
+      const values = await generationForm.validateFields();
+      const manual = await generateOpeningManual(generationDocument.id, values);
+      setRows((current) => current.map((row) => (
+        row.document.id === generationDocument.id
+          ? { ...row, manuals: [manual, ...row.manuals] }
+          : row
+      )));
+      messageApi.success("主持人手册已在后台开始生成，请稍后手动刷新查看结果");
+    } catch (error) {
+      messageApi.error(error instanceof Error ? error.message : "创建主持人手册生成任务失败");
+    } finally {
+      setGenerationLoading(false);
+    }
+  };
+
   return (
     <Space direction="vertical" size={16} style={{ width: "100%" }}>
       {contextHolder}
@@ -123,7 +166,7 @@ export function ScriptOpeningManualDashboard() {
         <Col xs={24} md={8}>
           <Card className="surface-card">
             <Statistic title="待生成手册" value={emptyCount} suffix="个剧本" prefix={<WarningOutlined />} />
-            <Typography.Text type="secondary">进入知识库详情后可一键生成</Typography.Text>
+            <Typography.Text type="secondary">可直接在本页生成并填写调试意见</Typography.Text>
           </Card>
         </Col>
       </Row>
@@ -185,7 +228,7 @@ export function ScriptOpeningManualDashboard() {
                   return manual ? (
                     <Tooltip title={manual.title}><Typography.Text>{manual.title}</Typography.Text></Tooltip>
                   ) : (
-                    <Typography.Text type="secondary">暂无，去知识库详情生成</Typography.Text>
+                    <Typography.Text type="secondary">暂无，可直接在本页生成</Typography.Text>
                   );
                 },
               },
@@ -208,7 +251,9 @@ export function ScriptOpeningManualDashboard() {
                   return (
                     <Space size={6}>
                       <Button size="small" type="text" icon={<EyeOutlined />} disabled={!manual} loading={detailLoading} onClick={() => manual && void openManual(manual.id)}>查看</Button>
-                      <Link href={`/knowledge/${row.document.id}`}><Button size="small" type="text">生成/调试</Button></Link>
+                      <Button size="small" type="text" icon={<BulbOutlined />} onClick={() => openGeneration(row.document)}>
+                        {manual ? "重新生成/调试" : "生成手册"}
+                      </Button>
                     </Space>
                   );
                 },
@@ -254,6 +299,54 @@ export function ScriptOpeningManualDashboard() {
             </Card>
           </Space>
         ) : <Empty description="请选择手册" />}
+      </Drawer>
+
+      <Drawer
+        title={generationDocument ? `生成主持人手册 · ${generationDocument.name}` : "生成主持人手册"}
+        width={560}
+        open={Boolean(generationDocument)}
+        onClose={() => setGenerationDocument(null)}
+        extra={<Button size="small" icon={<ReloadOutlined />} loading={loading} onClick={() => void loadData()}>刷新状态</Button>}
+      >
+        {generationDocument ? (
+          <Space direction="vertical" size={16} style={{ width: "100%" }}>
+            <Typography.Text type="secondary">
+              {latestManual(rows.find((row) => row.document.id === generationDocument.id)?.manuals ?? [])
+                ? "将创建一份新版本手册；旧版本会保留，可用于对比。"
+                : "尚未生成过手册。推荐先用“专业版 + 新手 DM”，由系统补齐开本准备、共同分幕、任务、转场与风险提醒。"}
+            </Typography.Text>
+            <Card size="small" title="推荐的调试意见">
+              <Space direction="vertical" size={8} style={{ width: "100%" }}>
+                {generationSuggestions.map((suggestion) => (
+                  <Button key={suggestion} type="text" block style={{ height: "auto", textAlign: "left", whiteSpace: "normal" }} onClick={() => generationForm.setFieldValue("extraRequirement", suggestion)}>
+                    {suggestion}
+                  </Button>
+                ))}
+              </Space>
+            </Card>
+            <Form<ManualGenerationForm> form={generationForm} layout="vertical" initialValues={{ style: "professional", targetDmLevel: "newbie" }}>
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item label="手册形式" name="style" rules={[{ required: true }]}>
+                    <Select options={[{ value: "professional", label: "专业开本版" }, { value: "simple", label: "简洁速查版" }, { value: "training", label: "培训教学版" }]} />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item label="适用 DM" name="targetDmLevel" rules={[{ required: true }]}>
+                    <Select options={[{ value: "newbie", label: "新手 DM" }, { value: "experienced", label: "熟练 DM" }]} />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Form.Item label="店长补充意见" name="extraRequirement" extra="这次生成希望重点补全、核对或调整什么？会传给手册生成模型。">
+                <Input.TextArea rows={6} maxLength={1000} showCount placeholder="例如：每一幕要标明发放顺序和预计时长；规则争议提供 DM 统一口径。" />
+              </Form.Item>
+            </Form>
+            <Button type="primary" block loading={generationLoading} onClick={() => void submitGeneration()}>
+              创建后台生成任务
+            </Button>
+            <Typography.Text type="secondary">任务创建后不会离开当前页面；请使用右上角“刷新状态”查看进度与新版本。</Typography.Text>
+          </Space>
+        ) : null}
       </Drawer>
     </Space>
   );

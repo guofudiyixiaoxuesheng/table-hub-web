@@ -305,6 +305,20 @@ export function KnowledgeResourceUpload({ initialDraft }: { initialDraft?: Uploa
                   当前会为已有资源创建一个新版本。请上传完整文件夹，上传完成后新版本会成为当前有效版本。
                 </Typography.Paragraph>
               )}
+              <Form.Item label={isScript ? "剧本文件夹" : "资源文件"} required>
+                <Upload.Dragger
+                  directory={isScript}
+                  multiple
+                  fileList={fileList}
+                  beforeUpload={() => false}
+                  onChange={({ fileList: next }) => inspectSelectedFiles(next)}
+                  onRemove={(file) => { setFileList((current) => current.filter((item) => item.uid !== file.uid)); setUploadDraft(null); return true; }}
+                >
+                  <p><CloudUploadOutlined className={styles.uploadIcon} /></p>
+                  <p>{isScript ? "点击或拖入完整剧本文件夹" : "点击或拖入一个或多个文件"}</p>
+                  <Typography.Text type="secondary">保留原始目录与文件名，最多 500 个文件、总计 2 GB</Typography.Text>
+                </Upload.Dragger>
+              </Form.Item>
               <Row gutter={16}>
                 <Col xs={24} md={12}><Form.Item label="资源类型" name="resourceType" rules={[{ required: true }]}><Select options={[...KNOWLEDGE_RESOURCE_OPTIONS]} onChange={(value) => { if (value !== "script") form.setFieldValue("scriptGenre", undefined); }} /></Form.Item></Col>
                 <Col xs={24} md={12}>
@@ -326,20 +340,6 @@ export function KnowledgeResourceUpload({ initialDraft }: { initialDraft?: Uploa
               <Form.Item label="资源名称" name="name" rules={[{ required: true, message: "请输入资源名称" }]}><Input placeholder={isScript ? "请输入剧本正式名称" : "请输入知识库资源名称"} /></Form.Item>
               <Form.Item label="标签" name="tags"><Select mode="tags" tokenSeparators={[","]} placeholder="输入后回车，例如：情感、6人、现代" /></Form.Item>
               <Form.Item label="说明" name="description"><Input.TextArea rows={3} maxLength={500} showCount placeholder="可填写版本变更、适用人数或内容说明" /></Form.Item>
-              <Form.Item label={isScript ? "剧本文件夹" : "资源文件"} required>
-                <Upload.Dragger
-                  directory={isScript}
-                  multiple
-                  fileList={fileList}
-                  beforeUpload={() => false}
-                  onChange={({ fileList: next }) => inspectSelectedFiles(next)}
-                  onRemove={(file) => { setFileList((current) => current.filter((item) => item.uid !== file.uid)); setUploadDraft(null); return true; }}
-                >
-                  <p><CloudUploadOutlined className={styles.uploadIcon} /></p>
-                  <p>{isScript ? "点击或拖入完整剧本文件夹" : "点击或拖入一个或多个文件"}</p>
-                  <Typography.Text type="secondary">保留原始目录与文件名，最多 500 个文件、总计 2 GB</Typography.Text>
-                </Upload.Dragger>
-              </Form.Item>
               <Space wrap>
                 <Button type="primary" htmlType="submit" loading={uploading} icon={<CloudUploadOutlined />}>上传到 OSS</Button>
                 <Button htmlType="button" onClick={exportCurrentManifest} icon={<DownloadOutlined />}>导出清单</Button>

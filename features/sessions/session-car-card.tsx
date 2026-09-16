@@ -10,6 +10,7 @@ export type SessionCarCardData = {
   scriptName: string;
   startTime: string;
   durationMinutes: number;
+  minPlayers?: number;
   capacity: number;
   joinedSeats: number;
   priceCents: number;
@@ -35,10 +36,11 @@ function formatSessionTime(value: string) {
   });
 }
 
-function statusText(status?: string | null) {
+function statusText(status: string | null | undefined, joinedSeats: number, minPlayers: number) {
   if (status === "cancelled") return "已取消";
   if (status === "completed") return "已结束";
   if (status === "full") return "已满";
+  if (joinedSeats >= minPlayers) return "待到店";
   return "报名中";
 }
 
@@ -60,17 +62,19 @@ export function SessionCarCard({
 }) {
   const remainingSeats = Math.max(session.capacity - session.joinedSeats, 0);
   const percent = Math.min(Math.round((session.joinedSeats / Math.max(session.capacity, 1)) * 100), 100);
+  const minPlayers = Math.max(session.minPlayers ?? session.capacity, 1);
+  const hasFormedCar = session.joinedSeats >= minPlayers;
   const carRate = remainingSeats <= 1 ? "极高" : remainingSeats <= 3 ? "高" : "中";
   const content = (
     <article className={`${styles.card} ${compact ? styles.compact : ""}`}>
       <div className={styles.cover}>
         {session.coverImageUrl ? <img src={session.coverImageUrl} alt={session.title || session.scriptName} /> : <span className={styles.placeholder}>{session.scriptName.slice(0, 2)}</span>}
-        <em className={styles.badge}>{statusText(session.status)}</em>
+        <em className={styles.badge}>{statusText(session.status, session.joinedSeats, minPlayers)}</em>
       </div>
       <div className={styles.main}>
         <div className={styles.topLine}>
           <h3>{session.title || session.scriptName}</h3>
-          <span className={styles.rate}>拼成率<em>{carRate}</em></span>
+          <span className={styles.rate}>{hasFormedCar ? "拼车成功" : "拼成率"}<em>{hasFormedCar ? "待到店" : carRate}</em></span>
         </div>
         <p className={styles.meta}>
           {session.scriptName} · {session.roomName || "房间待定"} · {session.dmName ? `DM ${session.dmName}` : "DM 待定"} · {Math.round(session.durationMinutes / 60)}小时

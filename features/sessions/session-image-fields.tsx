@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AppstoreAddOutlined, LinkOutlined, PictureOutlined } from "@ant-design/icons";
-import { Alert, Button, Form, Image, Input, Select, Space, Typography } from "antd";
+import { LinkOutlined } from "@ant-design/icons";
+import { Form, Image, Input, Select, Space, Typography } from "antd";
 import type { FormInstance } from "antd";
 import {
   listScriptImageOptions,
@@ -15,8 +15,12 @@ import styles from "./sessions.module.css";
 const sourceOptions: { value: GameSessionImageSource; label: string; disabled?: boolean }[] = [
   { value: "manual", label: "手动填写图片地址" },
   { value: "knowledge_asset", label: "从剧本资料图片中选择" },
-  { value: "ai_generated", label: "AI 正式物料图片" },
+  { value: "ai_generated", label: "从运营生成图片素材库中选择" },
 ];
+
+const generatedImageReference = (id: string) => `ai-generated://${id}`;
+
+const isGeneratedImageReference = (value?: string | null) => value?.startsWith("ai-generated://");
 
 function normalizeDetailUrls(value?: string[] | string | null) {
   if (Array.isArray(value)) return value;
@@ -53,19 +57,30 @@ export function SessionImageFields({ form }: { form: FormInstance<GameSessionPay
     return () => window.clearTimeout(timer);
   }, [scriptDocumentId]);
 
-  const assetOptions = assets.map((asset) => ({
+  const knowledgeAssetOptions = assets.filter((asset) => asset.source === "knowledge_asset").map((asset) => ({
     value: asset.id,
     label: asset.pageNumber ? `${asset.label} · 第 ${asset.pageNumber} 页` : asset.label,
+  }));
+  const generatedImageOptions = assets.filter((asset) => asset.source === "ai_generated").map((asset) => ({
+    // 不能把会过期的预签名 URL 写入场次；持久化素材 ID，由后端读取时再签发 URL。
+    value: generatedImageReference(asset.id),
+    label: asset.sourceTitle ? `${asset.label} · V${asset.sourceVersionNo ?? "-"} ${asset.sourceTitle}` : asset.label,
   }));
   const coverPreviewUrl =
     coverImageSource === "knowledge_asset"
       ? assets.find((asset) => asset.id === coverImageAssetId)?.previewUrl
+      : coverImageSource === "ai_generated" && isGeneratedImageReference(coverImageUrl)
+        ? assets.find((asset) => generatedImageReference(asset.id) === coverImageUrl)?.previewUrl
       : coverImageUrl;
   const detailPreviewUrls =
     detailImageSource === "knowledge_asset"
       ? detailImageAssetIds
           .map((assetId) => assets.find((asset) => asset.id === assetId)?.previewUrl)
           .filter((url): url is string => Boolean(url))
+      : detailImageSource === "ai_generated"
+        ? detailImageUrls
+            .map((reference) => assets.find((asset) => generatedImageReference(asset.id) === reference)?.previewUrl ?? reference)
+            .filter((url): url is string => Boolean(url))
       : detailImageUrls;
 
   return (
@@ -90,7 +105,19 @@ export function SessionImageFields({ form }: { form: FormInstance<GameSessionPay
                   loading={loadingAssets}
                   optionFilterProp="label"
                   placeholder="从当前剧本已解析图片中选择"
-                  options={assetOptions}
+                  options={knowledgeAssetOptions}
+                />
+              </Form.Item>
+            ) : source === "ai_generated" ? (
+              <Form.Item name="coverImageUrl" label="选择运营生成主图">
+                <Select
+                  allowClear
+                  showSearch
+                  loading={loadingAssets}
+                  optionFilterProp="label"
+                  placeholder="从当前剧本所有运营生成图片中选择"
+                  options={generatedImageOptions}
+                  onChange={() => form.setFieldValue("coverImageAssetId", undefined)}
                 />
               </Form.Item>
             ) : (
@@ -104,39 +131,49 @@ export function SessionImageFields({ form }: { form: FormInstance<GameSessionPay
 
       {coverPreviewUrl ? <Image src={coverPreviewUrl} alt="场次主图预览" className={styles.coverPreview} /> : null}
 
-      <div className={styles.formGrid}>
-        <Form.Item name="detailImageSource" label="详情图来源" initialValue="manual">
-          <Select options={sourceOptions} />
-        </Form.Item>
-        <Form.Item noStyle shouldUpdate={(prev, next) => prev.detailImageSource !== next.detailImageSource}>
-          {({ getFieldValue, setFieldValue }) => {
-            const source = getFieldValue("detailImageSource");
-            return source === "knowledge_asset" ? (
-              <Form.Item name="detailImageAssetIds" label="选择详情图">
-                <Select
-                  allowClear
-                  mode="multiple"
-                  showSearch
-                  loading={loadingAssets}
-                  optionFilterProp="label"
-                  placeholder="可选择多张图片"
-                  options={assetOptions}
-                />
-              </Form.Item>
-            ) : (
-              <Form.Item label="详情图地址">
-                <Input.TextArea
-                  rows={3}
-                  placeholder="一行一个图片地址"
-                  value={detailImageUrls.join("\n")}
-                  onChange={(event) => setFieldValue("detailImageUrls", normalizeDetailUrls(event.target.value))}
-                />
-              </Form.Item>
-            );
-          }}
-        </Form.Item>
-      </div>
-
+      <Form.Item name="detailImageSource" label="详情图来源" initialValue="manual">
+        <Select options={sourceOptions} />
+      </Form.Item>
+      <Form.Item noStyle shouldUpdate={(prev, next) => prev.detailImageSource !== next.detailImageSource}>
+        {({ getFieldValue, setFieldValue }) => {
+          const source = getFieldValue("detailImageSource");
+          return source === "knowledge_asset" ? (
+            <Form.Item name="detailImageAssetIds" label="选择详情图">
+              <Select
+                allowClear
+                mode="multiple"
+                showSearch
+                loading={loadingAssets}
+                optionFilterProp="label"
+                placeholder="可选择多张图片"
+                options={knowledgeAssetOptions}
+              />
+            </Form.Item>
+          ) : source === "ai_generated" ? (
+            <Form.Item name="detailImageUrls" label="选择运营生成详情图">
+              <Select
+                allowClear
+                mode="multiple"
+                showSearch
+                loading={loadingAssets}
+                optionFilterProp="label"
+                placeholder="可从当前剧本所有运营生成图片中选择多张"
+                options={generatedImageOptions}
+                onChange={() => setFieldValue("detailImageAssetIds", [])}
+              />
+            </Form.Item>
+          ) : (
+            <Form.Item label="详情图地址">
+              <Input.TextArea
+                rows={3}
+                placeholder="一行一个图片地址"
+                value={detailImageUrls.join("\n")}
+                onChange={(event) => setFieldValue("detailImageUrls", normalizeDetailUrls(event.target.value))}
+              />
+            </Form.Item>
+          );
+        }}
+      </Form.Item>
       {detailPreviewUrls.length ? (
         <Space wrap>
           {detailPreviewUrls.slice(0, 6).map((url) => (
@@ -144,19 +181,6 @@ export function SessionImageFields({ form }: { form: FormInstance<GameSessionPay
           ))}
         </Space>
       ) : null}
-
-      <Alert
-        type="info"
-        showIcon
-        icon={<PictureOutlined />}
-        message="当前先支持填写图片地址，或从剧本资料解析出来的图片里选择；AI 生成图后续可以继续接到这里。"
-        description="如果在知识库详情页已为正式物料生成图片，创建场次选择该物料后会自动填入这里。"
-        action={
-          <Button size="small" icon={<AppstoreAddOutlined />} disabled>
-            去知识库生成
-          </Button>
-        }
-      />
     </div>
   );
 }

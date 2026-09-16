@@ -14,8 +14,8 @@ export default async function ScriptMarketingDetailPage({ params }: ScriptMarket
   return (
     <div className="page-stack">
       <PageHeading
-        title="AI 运营物料详情"
-        description="管理单个剧本的拼车卡片、详情页内容、朋友圈文案和宣传图片方案"
+        title="运营物料详情"
+        description="在同一条流程中确认文案版本、生成主图并复用到场次"
       />
       <ScriptMarketingDetail documentId={documentId} />
     </div>

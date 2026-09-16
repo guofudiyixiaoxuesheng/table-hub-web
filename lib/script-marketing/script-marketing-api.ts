@@ -62,6 +62,20 @@ export type ScriptMarketingImageGeneration = {
   errorMessage?: string | null;
 };
 
+export type ScriptMarketingImageResult = {
+  id: string;
+  documentId: string;
+  sourceAssetId?: string | null;
+  sourceVersionNo?: number | null;
+  sourceTitle?: string | null;
+  imageKind: "cover" | "detail" | string;
+  status: "generating" | "ready" | "failed" | string;
+  imageUrl?: string | null;
+  finalPrompt?: string | null;
+  errorMessage?: string | null;
+  createdAt?: string | null;
+};
+
 export type ScriptMarketingAssetResult = {
   documentId: string;
   versionId?: string | null;
@@ -109,6 +123,10 @@ export function generateScriptMarketingAssets(documentId: string, payload: Scrip
 export function listScriptMarketingAssets(documentId: string, status?: "draft" | "approved") {
   const search = status ? `?status=${status}` : "";
   return apiFetch<ScriptMarketingAssetResult[]>(`/api/v1/script-marketing/${documentId}${search}`);
+}
+
+export function listScriptMarketingImages(documentId: string) {
+  return apiFetch<ScriptMarketingImageResult[]>(`/api/v1/script-marketing/${documentId}/images`);
 }
 
 export function approveScriptMarketingAsset(assetId: string, managerFeedback?: string | null) {

@@ -29,6 +29,12 @@ const KNOWLEDGE_CHUNK_TIMEOUT_MS = 120_000;
 const KNOWLEDGE_EMBEDDING_TIMEOUT_MS = 300_000;
 const KNOWLEDGE_RETRIEVE_TIMEOUT_MS = 60_000;
 
+export type KnowledgePreparationTask = {
+  documentId: string;
+  versionId: string;
+  status: "processing" | string;
+};
+
 export async function uploadKnowledgeResource(
   payload: Omit<CreateKnowledgeResourcePayload, "files">,
   sourceFiles: BrowserFolderFile[],
@@ -196,6 +202,16 @@ export function loadKnowledgeDocument(documentId: string, versionId: string, ide
     method: "POST",
     headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
   }, true, KNOWLEDGE_PARSE_TIMEOUT_MS);
+}
+
+export function prepareKnowledgeForAi(
+  documentId: string,
+  versionId: string,
+): Promise<KnowledgePreparationTask> {
+  return apiFetch<KnowledgePreparationTask>(
+    `/api/v1/knowledge/${documentId}/versions/${versionId}/prepare`,
+    { method: "POST" },
+  );
 }
 
 export function loadKnowledgeFile(documentId: string, versionId: string, fileId: string, idempotencyKey?: string): Promise<ParsedKnowledgeFile> {

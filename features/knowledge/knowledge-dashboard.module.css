@@ -49,6 +49,25 @@
   vertical-align: middle;
 }
 
+.topInfoColumn {
+  display: flex;
+  min-width: 0;
+}
+
+.topInfoCard {
+  width: 100%;
+  height: 100%;
+  min-height: 364px;
+}
+
+.topInfoDescriptions :global(.ant-descriptions-item-content) {
+  min-width: 0;
+}
+
+.topInfoDescriptions :global(.ant-descriptions-item-content) > * {
+  max-width: 100%;
+}
+
 .ellipsisText {
   display: inline-block;
   max-width: 100%;
@@ -146,14 +165,103 @@
   padding: 28px;
 }
 
+.processDetailsAnchor,
+.detailTabsCard,
+.detailTabsCard :global(.ant-tabs-content-holder),
+.detailTabsCard :global(.ant-tabs-content),
+.detailTabsCard :global(.ant-tabs-tabpane) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.detailTabsCard {
+  overflow: hidden;
+}
+
+.detailTabsCard :global(.ant-table-wrapper) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.detailFilters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.detailFilters :global(.ant-input-affix-wrapper),
+.detailFilters :global(.ant-input-group-wrapper),
+.detailFilters :global(.ant-select-selector),
+.detailFilters :global(.ant-btn) {
+  min-height: 40px !important;
+}
+
+.detailFilters :global(.ant-input-group-wrapper),
+.detailFilters :global(.ant-btn) {
+  height: 40px;
+}
+
+.detailFilters :global(.ant-select-selector) {
+  align-items: center;
+}
+
 .detailTabsCard :global(.ant-tabs-tabpane) {
   padding-top: 6px;
+}
+
+.manualMarkdown {
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.manualMarkdown :global(table) {
+  width: 100%;
+  max-width: 100%;
+  table-layout: fixed;
+}
+
+.manualMarkdown :global(th),
+.manualMarkdown :global(td) {
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  vertical-align: top;
+}
+
+.manualMarkdown :global(th:nth-child(1)),
+.manualMarkdown :global(td:nth-child(1)) {
+  width: 12%;
+}
+
+.manualMarkdown :global(th:nth-child(2)),
+.manualMarkdown :global(td:nth-child(2)) {
+  width: 27%;
+}
+
+.manualMarkdown :global(th:nth-child(3)),
+.manualMarkdown :global(td:nth-child(3)) {
+  width: 23%;
+}
+
+.manualMarkdown :global(th:nth-child(4)),
+.manualMarkdown :global(td:nth-child(4)) {
+  width: 12%;
+}
+
+.manualMarkdown :global(th:nth-child(5)),
+.manualMarkdown :global(td:nth-child(5)) {
+  width: 26%;
 }
 
 @media (max-width: 900px) {
   .overviewPanel,
   .uploadPanel {
     grid-column: span 12;
+  }
+
+  .topInfoCard {
+    min-height: 0;
   }
 }
 
@@ -179,5 +287,9 @@
 
   .detailTabsCard :global(.ant-card-body) {
     padding: 18px;
+  }
+
+  .detailFilters > * {
+    width: 100% !important;
   }
 }

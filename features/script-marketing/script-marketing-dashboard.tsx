@@ -4,17 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BulbOutlined, EyeOutlined, FileTextOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
-import { Button, Card, Col, Drawer, Empty, Input, Modal, Row, Select, Space, Statistic, Table, Tag, Tooltip, Typography, message } from "antd";
+import { Button, Card, Col, Empty, Input, Modal, Row, Select, Space, Statistic, Table, Tag, Tooltip, Typography, message } from "antd";
 import { listKnowledgeDocuments } from "@/lib/oss/knowledge-resource-api";
 import { SCRIPT_GENRE_OPTIONS, type KnowledgeDocumentListItem } from "@/lib/oss/knowledge-resource-types";
 import {
-  approveScriptMarketingAsset,
   generateScriptMarketingAssets,
-  generateScriptMarketingImages,
   listScriptMarketingAssets,
   type ScriptMarketingAssetResult,
 } from "@/lib/script-marketing/script-marketing-api";
-import { ScriptMarketingResult } from "./script-marketing-result";
 import styles from "./script-marketing-dashboard.module.css";
 
 type AssetStatusFilter = "all" | "approved" | "draft" | "none";
@@ -78,14 +75,13 @@ export function ScriptMarketingDashboard() {
   const [rows, setRows] = useState<MarketingRow[]>([]);
   const [keyword, setKeyword] = useState("");
   const [status, setStatus] = useState<AssetStatusFilter>("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [loading, setLoading] = useState(false);
-  const [activeRow, setActiveRow] = useState<MarketingRow | null>(null);
   const [generatingRow, setGeneratingRow] = useState<MarketingRow | null>(null);
   const [usageType, setUsageType] = useState(MATERIAL_USAGE_OPTIONS[0].value);
   const [extraRequirement, setExtraRequirement] = useState("");
   const [generating, setGenerating] = useState(false);
-  const [adoptingAssetId, setAdoptingAssetId] = useState<string | null>(null);
-  const [generatingImageAssetId, setGeneratingImageAssetId] = useState<string | null>(null);
   const [messageApi, contextHolder] = message.useMessage();
 
   const loadData = useCallback(async () => {
@@ -131,15 +127,6 @@ export function ScriptMarketingDashboard() {
   const totalEmpty = rows.filter((row) => !row.assets.length).length;
   const usageOption = MATERIAL_USAGE_OPTIONS.find((item) => item.value === usageType) ?? MATERIAL_USAGE_OPTIONS[0];
 
-  const replaceRowAssets = (documentId: string, updater: (assets: ScriptMarketingAssetResult[]) => ScriptMarketingAssetResult[]) => {
-    setRows((current) => current.map((row) => (
-      row.document.id === documentId ? { ...row, assets: updater(row.assets) } : row
-    )));
-    setActiveRow((current) => (
-      current?.document.id === documentId ? { ...current, assets: updater(current.assets) } : current
-    ));
-  };
-
   const openGenerateModal = (row: MarketingRow) => {
     setGeneratingRow(row);
     setUsageType(MATERIAL_USAGE_OPTIONS[0].value);
@@ -168,41 +155,6 @@ export function ScriptMarketingDashboard() {
     }
   };
 
-  const adoptMaterial = async (asset: ScriptMarketingAssetResult) => {
-    if (!asset.assetId) return;
-    setAdoptingAssetId(asset.assetId);
-    try {
-      const result = await approveScriptMarketingAsset(asset.assetId);
-      replaceRowAssets(result.documentId, (assets) => assets.map((item) => (
-        item.assetId === result.assetId ? result : item
-      )));
-      messageApi.success("已确认正式使用，创建场次时可以选择这版物料");
-    } catch (error) {
-      messageApi.error(error instanceof Error ? error.message : "确认使用失败");
-    } finally {
-      setAdoptingAssetId(null);
-    }
-  };
-
-  const generateImages = async (asset: ScriptMarketingAssetResult) => {
-    if (!asset.assetId) return;
-    setGeneratingImageAssetId(asset.assetId);
-    try {
-      const result = await generateScriptMarketingImages(asset.assetId, {
-        includeCover: true,
-        includeDetail: false,
-      });
-      replaceRowAssets(result.documentId, (assets) => assets.map((item) => (
-        item.assetId === result.assetId ? result : item
-      )));
-      messageApi.success("图片已生成并保存，可用于拼车卡片和详情页");
-    } catch (error) {
-      messageApi.error(error instanceof Error ? error.message : "图片生成失败");
-    } finally {
-      setGeneratingImageAssetId(null);
-    }
-  };
-
   return (
     <Space direction="vertical" size={16} style={{ width: "100%" }}>
       {contextHolder}
@@ -216,29 +168,34 @@ export function ScriptMarketingDashboard() {
         <Col xs={24} md={8}>
           <Card className="surface-card">
             <Statistic title="待确认草稿" value={totalDraft} suffix="个剧本" prefix={<FileTextOutlined />} />
-            <Typography.Text type="secondary">需要店长检查文案、图片和场次信息</Typography.Text>
+                    <Typography.Text type="secondary">需要先确认一个版本，再进入主图生成</Typography.Text>
           </Card>
         </Col>
         <Col xs={24} md={8}>
           <Card className="surface-card">
             <Statistic title="待生成物料" value={totalEmpty} suffix="个剧本" prefix={<PlusOutlined />} />
-            <Typography.Text type="secondary">可在本页直接生成拼车、详情和朋友圈物料</Typography.Text>
+            <Typography.Text type="secondary">从生成一版运营文案开始</Typography.Text>
           </Card>
         </Col>
       </Row>
 
-      <Card className="surface-card">
-        <Space direction="vertical" size={14} style={{ width: "100%" }}>
-          <div className={styles.toolbar}>
+      <Card className={`surface-card ${styles.marketingListCard}`}>
+        <div className={styles.toolbar}>
             <Input.Search
               allowClear
               placeholder="搜索剧本名称"
               value={keyword}
-              onChange={(event) => setKeyword(event.target.value)}
+              onChange={(event) => {
+                setKeyword(event.target.value);
+                setPage(1);
+              }}
             />
             <Select<AssetStatusFilter>
               value={status}
-              onChange={setStatus}
+              onChange={(value) => {
+                setStatus(value);
+                setPage(1);
+              }}
               options={[
                 { label: "全部状态", value: "all" },
                 { label: "有正式物料", value: "approved" },
@@ -247,15 +204,29 @@ export function ScriptMarketingDashboard() {
               ]}
             />
             <Button icon={<ReloadOutlined />} loading={loading} onClick={() => void loadData()}>刷新</Button>
-          </div>
-          <Table<MarketingRow>
-            rowKey={(row) => row.document.id}
-            size="middle"
-            loading={loading}
-            dataSource={filteredRows}
-            scroll={{ x: 1060 }}
-            locale={{ emptyText: <Empty description="暂无剧本运营物料" /> }}
-            columns={[
+        </div>
+        <Table<MarketingRow>
+              className={styles.marketingTable}
+              rowKey={(row) => row.document.id}
+              size="middle"
+              tableLayout="fixed"
+              loading={loading}
+              dataSource={filteredRows}
+              scroll={{ x: 1650 }}
+              pagination={{
+              current: page,
+              pageSize,
+              total: filteredRows.length,
+              showSizeChanger: true,
+              pageSizeOptions: [10, 20, 50],
+              showTotal: (total) => `共 ${total} 个剧本`,
+              onChange: (nextPage, nextPageSize) => {
+                setPage(nextPage);
+                setPageSize(nextPageSize);
+              },
+              }}
+              locale={{ emptyText: <Empty description="暂无剧本运营物料" /> }}
+              columns={[
               {
                 title: "剧本",
                 width: 260,
@@ -302,7 +273,7 @@ export function ScriptMarketingDashboard() {
                       <Typography.Text>{asset.title}</Typography.Text>
                     </Tooltip>
                   ) : (
-                    <Typography.Text type="secondary">暂无，去知识库详情生成</Typography.Text>
+                      <Typography.Text type="secondary">暂无，点击“生成物料”</Typography.Text>
                   );
                 },
               },
@@ -349,34 +320,9 @@ export function ScriptMarketingDashboard() {
                   </Space>
                 ),
               },
-            ]}
-          />
-        </Space>
+              ]}
+        />
       </Card>
-
-      <Drawer
-        title={activeRow ? `${activeRow.document.name} · 运营物料` : "运营物料"}
-        width={860}
-        open={Boolean(activeRow)}
-        onClose={() => setActiveRow(null)}
-      >
-        {activeRow?.assets.length ? (
-          <Space direction="vertical" size={16} style={{ width: "100%" }}>
-            {activeRow.assets.map((asset, index) => (
-              <ScriptMarketingResult
-                key={asset.assetId ?? `${asset.versionId}-${index}`}
-                result={asset}
-                onAdopt={asset.status === "approved" ? undefined : () => void adoptMaterial(asset)}
-                onGenerateImages={asset.status === "approved" ? () => void generateImages(asset) : undefined}
-                adopting={adoptingAssetId === asset.assetId}
-                generatingImages={generatingImageAssetId === asset.assetId}
-              />
-            ))}
-          </Space>
-        ) : (
-          <Empty description="暂无运营物料" />
-        )}
-      </Drawer>
 
       <Modal
         title={generatingRow ? `生成《${generatingRow.document.name}》运营物料` : "生成运营物料"}

@@ -1,7 +1,9 @@
 // next.config.js
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  allowedDevOrigins: ['192.168.1.116'],
+  // 手机在同一局域网访问开发服务器时，DHCP 可能改变电脑的末段 IP。
+  // 只放行当前私有网段，避免每次换网都要改一个固定 IP。
+  allowedDevOrigins: ['192.168.1.*'],
   rewrites: async () => {
     return [
       {

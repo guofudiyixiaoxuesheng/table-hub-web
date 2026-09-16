@@ -45,7 +45,10 @@ export function SidebarNavigation({ onNavigate }: { onNavigate?: () => void }) {
   const { user } = useAuth();
   const items = getNavigationItems(user?.role ?? "guest");
   const flatItems = flattenItems(items);
-  const selected = [...flatItems].sort((a, b) => b.href.length - a.href.length).find((item) => pathname.startsWith(item.href));
+  const selected = [...flatItems]
+    .filter((item) => !item.children?.length)
+    .sort((a, b) => b.href.length - a.href.length)
+    .find((item) => pathname.startsWith(item.href));
   const openKeys = items.filter((item) => item.children?.some((child) => pathname.startsWith(child.href))).map((item) => item.key ?? item.href);
 
   return (

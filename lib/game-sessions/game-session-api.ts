@@ -44,6 +44,9 @@ export type SessionImageAssetOption = {
   previewUrl: string;
   relativePath: string | null;
   pageNumber: number | null;
+  source: Exclude<GameSessionImageSource, "manual">;
+  sourceVersionNo?: number | null;
+  sourceTitle?: string | null;
 };
 
 export type SessionPlayer = {

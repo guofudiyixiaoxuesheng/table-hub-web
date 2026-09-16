@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import {
   ArrowLeftOutlined,
@@ -16,10 +17,12 @@ import {
   DeleteOutlined,
   CloudUploadOutlined,
   BulbOutlined,
+  DownOutlined,
+  UpOutlined,
 } from "@ant-design/icons";
 import { XMarkdown } from "@ant-design/x-markdown";
 import { Button, Card, Col, Collapse, Descriptions, Drawer, Empty, Form, Image, Input, InputNumber, Modal, Progress, Row, Select, Space, Statistic, Table, Tabs, Tag, Timeline, Tooltip, Typography, message } from "antd";
-import { chunkKnowledgeDocument, deleteKnowledgeFile, embedKnowledgeChunks, getAssetPreviewUrl, getKnowledgeManifest, getLoadedMarkdown, listKnowledgeChunks, listKnowledgeDocuments, listKnowledgeEmbeddings, listLoadedFiles, loadKnowledgeDocument, loadKnowledgeFile, retrieveKnowledgeChunks, saveManualParsedText } from "@/lib/oss/knowledge-resource-api";
+import { chunkKnowledgeDocument, deleteKnowledgeFile, embedKnowledgeChunks, getAssetPreviewUrl, getKnowledgeManifest, getLoadedMarkdown, listKnowledgeChunks, listKnowledgeDocuments, listKnowledgeEmbeddings, listLoadedFiles, loadKnowledgeDocument, loadKnowledgeFile, prepareKnowledgeForAi, retrieveKnowledgeChunks, saveManualParsedText } from "@/lib/oss/knowledge-resource-api";
 import { useIdempotencyKey } from "@/lib/hooks/use-idempotency-key";
 import { createClientId } from "@/lib/utils/create-client-id";
 import {
@@ -77,6 +80,21 @@ const profileStatusLabels: Record<string, { label: string; color: string }> = {
   needs_review: { label: "需人工确认", color: "warning" },
   approved: { label: "已确认可用", color: "success" },
   failed: { label: "生成失败", color: "error" },
+};
+
+const profileGenerationStatusLabels: Record<string, { label: string; color: string }> = {
+  queued: { label: "已排队", color: "default" },
+  generating: { label: "后台生成中", color: "processing" },
+  ready: { label: "生成完成", color: "success" },
+  failed: { label: "后台生成失败", color: "error" },
+};
+
+const openingManualStatusLabels: Record<string, string> = {
+  draft: "草稿",
+  generating: "生成中",
+  ready: "已生成",
+  failed: "生成失败",
+  approved: "已确认",
 };
 
 function buildUploadVersionHref(document: KnowledgeDocumentListItem): string {
@@ -272,6 +290,7 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
     if (typeof window === "undefined") return false;
     return new URLSearchParams(window.location.search).get("guide") === "load";
   });
+  const [processDetailsTarget, setProcessDetailsTarget] = useState<HTMLDivElement | null>(null);
   const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
   const [manualTextFile, setManualTextFile] = useState<KnowledgeManifestFile | null>(null);
   const [manualText, setManualText] = useState("");
@@ -465,18 +484,9 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
     if (!document?.activeVersionId) return;
     setPreparingAi(true);
     try {
-      if (!loadedDone) {
-        const loaded = await loadKnowledgeDocument(document.id, document.activeVersionId, loadAllIdempotency.getKey());
-        setParsedFiles(loaded.files);
-        loadAllIdempotency.reset();
-      }
-      const chunked = await chunkKnowledgeDocument(document.id, document.activeVersionId, chunkIdempotency.getKey());
-      setChunkResult(chunked);
-      chunkIdempotency.reset();
-      const embedded = await embedKnowledgeChunks(document.id, document.activeVersionId, embeddingIdempotency.getKey());
-      setEmbeddingResult(embedded);
-      embeddingIdempotency.reset();
-      messageApi.success("资料已整理完成，AI 可以使用了");
+      await prepareKnowledgeForAi(document.id, document.activeVersionId);
+      messageApi.success("资料已在后台开始整理，请稍后手动刷新查看进度");
+      setShowProcessDetails(true);
     } catch (error) {
       messageApi.error(error instanceof Error ? error.message : "一键整理失败，请查看处理详情");
       setShowProcessDetails(true);
@@ -556,7 +566,7 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
     try {
       const result = await generateScriptProfile(document.id);
       setScriptProfile(result);
-      messageApi.success("剧本档案已生成");
+      messageApi.success("剧本档案已加入后台生成队列，请稍后手动刷新查看结果");
     } catch (error) {
       messageApi.error(error instanceof Error ? error.message : "剧本档案生成失败");
     } finally {
@@ -767,7 +777,14 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
           </Link>
         )}
       </Space>
-      <Card className="surface-card" loading={loading}>
+      <Row gutter={[20, 20]}>
+        <Col xs={24} xl={12} className={styles.topInfoColumn}>
+          <Card
+            className={`surface-card ${styles.topInfoCard}`}
+            title="基础信息"
+            loading={loading}
+            extra={<Button size="small" icon={<ReloadOutlined />} loading={loading} onClick={() => void loadDetail()}>刷新</Button>}
+          >
         <Space orientation="vertical" size={18} style={{ width: "100%" }}>
           <Space wrap>
             <Tag color={document?.resourceType === "script" ? "purple" : "blue"}>{document ? resourceLabels.get(document.resourceType) : "资源"}</Tag>
@@ -778,17 +795,24 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
             <Typography.Title level={2} style={{ margin: 0 }}>{document?.name ?? "知识库资源"}</Typography.Title>
             {document?.description && <Typography.Paragraph type="secondary" style={{ marginTop: 8 }}>{document.description}</Typography.Paragraph>}
           </div>
-          <Descriptions column={{ xs: 1, sm: 2 }} bordered>
+          <Descriptions className={styles.topInfoDescriptions} column={{ xs: 1, sm: 2 }} bordered>
             <Descriptions.Item label="当前版本">{document?.activeVersion ?? "暂无"}</Descriptions.Item>
-            <Descriptions.Item label="版本 ID">{manifest?.versionId ?? document?.activeVersionId ?? "暂无"}</Descriptions.Item>
+            <Descriptions.Item label="版本 ID"><EllipsisText value={manifest?.versionId ?? document?.activeVersionId} copyable /></Descriptions.Item>
             <Descriptions.Item label="文件数量">{manifest?.files.length ?? document?.fileCount ?? 0}</Descriptions.Item>
+            <Descriptions.Item label="资源 ID"><EllipsisText value={document?.id} copyable /></Descriptions.Item>
             <Descriptions.Item label="总大小">{formatBytes(totalSize || document?.totalSize || 0)}</Descriptions.Item>
-            <Descriptions.Item label="资源 ID">{document?.id}</Descriptions.Item>
             <Descriptions.Item label="更新时间">{document ? new Date(document.updatedAt).toLocaleString("zh-CN") : "暂无"}</Descriptions.Item>
           </Descriptions>
         </Space>
-      </Card>
-      <Card className="surface-card" title="AI 可用状态" loading={loading}>
+          </Card>
+        </Col>
+        <Col xs={24} xl={12} className={styles.topInfoColumn}>
+          <Card
+            className={`surface-card ${styles.topInfoCard}`}
+            title="资料可用状态"
+            loading={loading}
+            extra={<Button size="small" icon={<ReloadOutlined />} loading={loading} onClick={() => void loadDetail()}>刷新</Button>}
+          >
         <Space orientation="vertical" size={16} style={{ width: "100%" }}>
           <Progress percent={pipelinePercent} strokeColor="#6d5dfc" />
           <Space orientation="vertical" size={4}>
@@ -812,13 +836,24 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
           <Button type="primary" block loading={preparingAi} disabled={!document?.activeVersionId} onClick={prepareForAi}>
             {aiReady ? "重新整理给 AI 使用" : "一键整理给 AI 使用"}
           </Button>
-          <Button block onClick={() => setShowProcessDetails((value) => !value)}>
+          <Button
+            block
+            icon={showProcessDetails ? <UpOutlined /> : <DownOutlined />}
+            onClick={() => setShowProcessDetails((value) => !value)}
+          >
             {showProcessDetails ? "收起处理详情" : "查看处理详情"}
           </Button>
         </Space>
-      </Card>
+          </Card>
+        </Col>
+      </Row>
+      <div ref={setProcessDetailsTarget} className={styles.processDetailsAnchor} />
       {document?.resourceType === "script" && (
-        <Card className="surface-card" title="剧本档案">
+        <Card
+          className="surface-card"
+          title="剧本档案"
+          extra={<Button size="small" icon={<ReloadOutlined />} loading={loading} onClick={() => void loadDetail()}>刷新</Button>}
+        >
           <Space direction="vertical" size={12} style={{ width: "100%" }}>
             <Typography.Text type="secondary">
               系统会从剧本资料中提炼人数、类型、卖点、角色、物料和开本风险。它是后续 AI 客服、主持人手册、宣传物料和创建场次的基础资料。
@@ -826,6 +861,9 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
             {scriptProfile ? (
               <Space direction="vertical" size={12} style={{ width: "100%" }}>
                 <Space wrap>
+                  <Tag color={profileGenerationStatusLabels[scriptProfile.generationStatus]?.color ?? "default"}>
+                    {profileGenerationStatusLabels[scriptProfile.generationStatus]?.label ?? scriptProfile.generationStatus}
+                  </Tag>
                   <Tag color={profileStatusLabels[scriptProfile.reviewStatus]?.color ?? "default"}>
                     {profileStatusLabels[scriptProfile.reviewStatus]?.label ?? scriptProfile.reviewStatus}
                   </Tag>
@@ -842,11 +880,18 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
                   <Descriptions.Item label="时长">{scriptProfile.durationMinutes ? `${scriptProfile.durationMinutes} 分钟` : "暂无"}</Descriptions.Item>
                   <Descriptions.Item label="DM难度">{scriptProfile.dmDifficulty ?? "暂无"}</Descriptions.Item>
                   <Descriptions.Item label="人物关系">{scriptProfile.relationships?.length ?? 0} 条</Descriptions.Item>
+                  <Descriptions.Item label="共同分幕">{scriptProfile.actStructure?.length ?? 0} 幕</Descriptions.Item>
                   <Descriptions.Item label="官配/核心关系">
                     {scriptProfile.relationships?.filter((item) => Boolean(item.isOfficialPair)).length ?? 0} 条
                   </Descriptions.Item>
                 </Descriptions>
                 {scriptProfile.summary ? <Typography.Paragraph ellipsis={{ rows: 2 }}>{scriptProfile.summary}</Typography.Paragraph> : null}
+                {(["queued", "generating"] as const).includes(scriptProfile.generationStatus as "queued" | "generating") ? (
+                  <Space>
+                    <Typography.Text type="secondary">档案正在后台生成，完成后请手动刷新本页查看结果。</Typography.Text>
+                    <Button size="small" icon={<ReloadOutlined />} loading={loading} onClick={loadDetail}>手动刷新</Button>
+                  </Space>
+                ) : null}
                 {scriptProfile.errorMessage ? <Typography.Text type="warning">{scriptProfile.errorMessage}</Typography.Text> : null}
                 <Card size="small" title="资料诊断">
                   {scriptProfile.retrievalDiagnostics?.length ? (
@@ -870,8 +915,8 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
                   )}
                 </Card>
                 <Space wrap>
-                  <Button type="primary" loading={scriptProfileLoading} onClick={openScriptProfileDrawer}>查看/编辑档案</Button>
-                  <Button loading={scriptProfileLoading} disabled={scriptProfile.reviewStatus === "approved"} onClick={() => void confirmApproveScriptProfile()}>
+                  <Button type="primary" loading={scriptProfileLoading} disabled={["queued", "generating"].includes(scriptProfile.generationStatus)} onClick={openScriptProfileDrawer}>查看/编辑档案</Button>
+                  <Button loading={scriptProfileLoading} disabled={scriptProfile.reviewStatus === "approved" || ["queued", "generating"].includes(scriptProfile.generationStatus)} onClick={() => void confirmApproveScriptProfile()}>
                     确认使用
                   </Button>
                   <Button loading={scriptProfileLoading} disabled={!aiReady} onClick={() => void triggerGenerateScriptProfile()}>
@@ -891,7 +936,11 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
         </Card>
       )}
       {document?.resourceType === "script" && (
-        <Card className="surface-card" title="AI 运营物料">
+        <Card
+          className="surface-card"
+          title="AI 运营物料"
+          extra={<Button size="small" icon={<ReloadOutlined />} loading={loading} onClick={() => void loadDetail()}>刷新</Button>}
+        >
           <Space direction="vertical" size={12} style={{ width: "100%" }}>
             <Typography.Text type="secondary">
               单剧本快捷入口。正式的朋友圈文案、宣传图和创建场次填充内容，建议到「运营物料」工作台统一管理。
@@ -930,7 +979,11 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
         </Card>
       )}
       {document?.resourceType === "script" && (
-        <Card className="surface-card" title="AI 主持人手册">
+        <Card
+          className="surface-card"
+          title="AI 主持人手册"
+          extra={<Button size="small" icon={<ReloadOutlined />} loading={loading} onClick={() => void loadDetail()}>刷新</Button>}
+        >
           <Space direction="vertical" size={12} style={{ width: "100%" }}>
             <Typography.Text type="secondary">
               单剧本快捷入口。完整的 DM 手册版本、开本时间线和审核结果，建议到「DM 主持手册」工作台统一查看。
@@ -940,7 +993,10 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
                 <Statistic title="手册版本" value={openingManualVersions.length} suffix="个" />
               </Col>
               <Col xs={24} sm={8}>
-                <Statistic title="最新状态" value={openingManualVersions[0]?.status ?? "待生成"} />
+                <Statistic
+                  title="最新状态"
+                  value={openingManualStatusLabels[openingManualVersions[0]?.status ?? ""] ?? "待生成"}
+                />
               </Col>
               <Col xs={24} sm={8}>
                 <Statistic title="时间线" value={openingManualVersions[0]?.timeline?.length ?? 0} suffix="个节点" />
@@ -971,7 +1027,11 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
           </Space>
         </Card>
       )}
-      {showProcessDetails && <Card className={`surface-card ${styles.detailTabsCard}`}>
+      {showProcessDetails && processDetailsTarget ? createPortal(<Card
+        className={`surface-card ${styles.detailTabsCard}`}
+        title="资料处理详情"
+        extra={<Button size="small" icon={<ReloadOutlined />} loading={loading} onClick={() => void loadDetail()}>刷新</Button>}
+      >
         <Tabs
           items={[
             {
@@ -990,7 +1050,7 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
                     </Space>
                     <Button type="primary" icon={<PlayCircleOutlined />} loading={loadingDocuments} disabled={!document?.activeVersionId} onClick={confirmLoadAllDocuments}>识别文件</Button>
                   </Space>
-                  <Space wrap>
+                  <div className={styles.detailFilters}>
                     <Input.Search
                       allowClear
                       placeholder="搜索文件名/路径"
@@ -1006,7 +1066,7 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
                     />
                     <Button icon={<ReloadOutlined />} loading={loading} onClick={loadDetail}>刷新</Button>
                     <Button onClick={() => { setFileKeyword(""); setFileStatusFilter("all"); }}>重置</Button>
-                  </Space>
+                  </div>
                   <Table<KnowledgeManifestFile>
                     rowKey="clientFileId"
                     tableLayout="fixed"
@@ -1204,7 +1264,7 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
             },
           ]}
         />
-      </Card>}
+      </Card>, processDetailsTarget) : null}
       <Drawer title={preview?.relativePath ?? "Markdown 预览"} width={720} open={previewOpen} onClose={() => setPreviewOpen(false)}>
         <Typography.Paragraph copyable={{ text: preview?.markdown ?? "" }} style={{ whiteSpace: "pre-wrap", fontFamily: "var(--font-mono), monospace" }}>
           {preview?.markdown ? renderMarkdownWithAssets(preview.markdown, assetUrls) : ""}
@@ -1559,11 +1619,13 @@ export function KnowledgeResourceDetail({ documentId }: { documentId: string }) 
               </Card>
             ) : null}
             <Card size="small" title="Markdown 预览">
-              <XMarkdown
-                content={openingManualResult.markdown ?? openingManualResult.markdownPreview ?? "暂无内容"}
-                openLinksInNewTab
-                escapeRawHtml
-              />
+              <div className={styles.manualMarkdown}>
+                <XMarkdown
+                  content={openingManualResult.markdown ?? openingManualResult.markdownPreview ?? "暂无内容"}
+                  openLinksInNewTab
+                  escapeRawHtml
+                />
+              </div>
             </Card>
           </Space>
         ) : null}

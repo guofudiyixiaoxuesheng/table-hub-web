@@ -1,6 +1,14 @@
 .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; }
-.toolbar { width:100%; justify-content:flex-end; }
+.toolbar { width:100%; align-items:center; justify-content:flex-end; }
 .toolbar :global(.ant-input-affix-wrapper) { width:260px; }
+.toolbar :global(.ant-input-affix-wrapper),
+.toolbar :global(.ant-input),
+.toolbar :global(.ant-select-single .ant-select-selector),
+.toolbar :global(.ant-btn) { height:40px !important; min-height:40px !important; }
+.toolbar :global(.ant-select-single .ant-select-selector) { display:flex; align-items:center; }
+.toolbar :global(.ant-select-single .ant-select-selection-item),
+.toolbar :global(.ant-select-single .ant-select-selection-placeholder) { line-height:38px !important; }
+.toolbar :global(.ant-btn) { display:inline-flex; align-items:center; justify-content:center; }
 .viewSwitch { margin-top:16px; }
 .dateInput { width:150px; }
 .filterSelect { width:130px; }
@@ -16,6 +24,17 @@
 .cover h3 { margin:5px 0 0; font-size:25px; }
 .body { padding:20px; }
 .formGrid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0 14px; }
+.sessionForm .formGrid > :global(.ant-form-item) { min-width:0; margin-bottom:16px; }
+.sessionForm .formGrid :global(.ant-input),
+.sessionForm .formGrid :global(.ant-input-number),
+.sessionForm .formGrid :global(.ant-select-single .ant-select-selector) { height:40px !important; min-height:40px !important; }
+.sessionForm .formGrid :global(.ant-select-single .ant-select-selector) { display:flex; align-items:center; }
+.sessionForm .formGrid :global(.ant-input-number-input-wrap input) { height:38px !important; }
+.sessionForm .formGrid :global(.ant-select-single .ant-select-selection-item),
+.sessionForm .formGrid :global(.ant-select-single .ant-select-selection-placeholder) { line-height:38px !important; }
+.sessionForm > :global(.ant-form-item) :global(.ant-input),
+.sessionForm > :global(.ant-form-item) :global(.ant-select-single .ant-select-selector),
+.sessionForm > :global(.ant-form-item) :global(.ant-input-number) { min-height:40px; }
 .imageFields { display:grid; gap:12px; margin:8px 0 18px; padding:16px; border:1px solid rgba(109,93,252,.14); border-radius:16px; background:rgba(109,93,252,.035); }
 .imageFields h5 { margin:0!important; }
 .coverPreview { max-width:240px; max-height:136px; object-fit:cover; border-radius:14px; }

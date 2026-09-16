@@ -20,6 +20,7 @@ export type ScriptProfileResult = {
   coreMechanics: string[];
   roles: Record<string, unknown>[];
   relationships: Record<string, unknown>[];
+  actStructure: Record<string, unknown>[];
   materialChecklist: string[];
   openingRisks: string[];
   spoilerNotes: string[];
@@ -34,6 +35,7 @@ export type ScriptProfileResult = {
   }>;
   confidenceScore: number | null;
   reviewStatus: "draft" | "needs_review" | "approved" | "failed" | string;
+  generationStatus: "queued" | "generating" | "ready" | "failed" | string;
   errorMessage: string | null;
   approvedAt: string | null;
   createdAt: string;
@@ -79,7 +81,6 @@ export function generateScriptProfile(documentId: string, payload: ScriptProfile
       body: JSON.stringify(payload),
     },
     true,
-    120000,
   );
 }
 

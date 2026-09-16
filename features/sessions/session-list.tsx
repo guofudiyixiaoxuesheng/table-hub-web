@@ -28,8 +28,10 @@ import { listScriptMarketingAssets, type ScriptMarketingAssetResult } from "@/li
 import { ScriptMarketingResult } from "@/features/script-marketing/script-marketing-result";
 import styles from "./sessions.module.css";
 
-function datetimeLocalValue(value: string) {
-  return new Date(value).toISOString().slice(0, 16);
+function currentLocalDatetimeValue(value = new Date()) {
+  // datetime-local 不带时区，不能直接截取 UTC ISO 字符串，否则东八区凌晨会默认到前一天。
+  const local = new Date(value.getTime() - value.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
 }
 
 function localDateValue(value = new Date()) {
@@ -87,7 +89,8 @@ export function SessionList() {
     detailImageSource: "manual",
     detailImageAssetIds: [],
     detailImageUrls: [],
-    startTime: datetimeLocalValue(new Date(Date.now() + 86400000).toISOString()),
+    // 新建场次默认从今天开始，店长只需按实际排期调整具体时间。
+    startTime: currentLocalDatetimeValue(),
     title: "",
     scriptName: "",
   }));
@@ -245,7 +248,7 @@ export function SessionList() {
     if (typeof defaults.priceYuan === "number") formValues.priceCents = defaults.priceYuan;
     form.setFieldsValue(formValues);
     setMarketingResult(asset);
-    messageApi.success(asset.coverImageUrl || detailImageUrls.length ? "已填充文字和 AI 图片" : "已填充文字；如需图片，请先在知识库详情生成");
+    messageApi.success(asset.coverImageUrl || detailImageUrls.length ? "已填充文字和图片" : "已填充文字");
   };
 
   const handleScriptChange = (documentId: string) => {
@@ -258,18 +261,20 @@ export function SessionList() {
     .filter((room) => room.status === "active")
     .map((room) => ({ value: room.id, label: `${room.name}（${room.capacity}人）` }));
 
+  const openCreateSession = () => {
+    form.resetFields();
+    setMarketingResult(null);
+    setMarketingVersions([]);
+    form.setFieldsValue({
+      ...createInitialValues,
+      roomId: activeRoomOptions[0]?.value,
+    });
+    setOpen(true);
+  };
+
   const handleMarketingVersionChange = (assetId: string) => {
     const asset = marketingVersions.find((item) => item.assetId === assetId);
     if (asset) applyMarketingToForm(asset);
-  };
-
-  const openMarketingSource = () => {
-    const documentId = form.getFieldValue("scriptDocumentId");
-    if (!documentId) {
-      messageApi.warning("请先选择剧本");
-      return;
-    }
-    window.open(`/knowledge/${documentId}`, "_blank", "noopener,noreferrer");
   };
 
   return (
@@ -314,7 +319,7 @@ export function SessionList() {
           <Button onClick={() => void loadSessions()} loading={loading}>查询</Button>
           <Button onClick={resetFilters}>重置</Button>
           <Button onClick={() => setRoomsOpen(true)}>房间管理</Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>新建场次</Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={openCreateSession}>新建场次</Button>
         </Space>
         <Tabs
           className={styles.viewSwitch}
@@ -342,7 +347,7 @@ export function SessionList() {
       )}
 
       <Modal title="新建剧本场次" open={open} onOk={() => void submit()} onCancel={() => setOpen(false)} confirmLoading={saving} width={720} okText="创建并进入详情">
-        <Form form={form} layout="vertical" initialValues={createInitialValues}>
+        <Form form={form} layout="vertical" initialValues={createInitialValues} className={styles.sessionForm}>
           <Form.Item name="scriptDocumentId" label="选择剧本" rules={[{ required: true, message: "请选择剧本" }]}>
             <Select
               showSearch
@@ -352,12 +357,9 @@ export function SessionList() {
               onChange={handleScriptChange}
             />
           </Form.Item>
-          <Card size="small" style={{ marginBottom: 16 }}>
+          <Card size="small" title="复用正式运营物料（可选）" style={{ marginBottom: 16 }}>
             <Space direction="vertical" size={10} style={{ width: "100%" }}>
-              <Space wrap style={{ justifyContent: "space-between", width: "100%" }}>
-                <Typography.Text type="secondary">这里使用知识库详情页中店长已确认的正式物料版本，选择后自动填充场次标题、详情文案和内部备注。</Typography.Text>
-                <Button onClick={openMarketingSource}>去知识库生成/审批</Button>
-              </Space>
+              <Typography.Text type="secondary">选择后自动填充场次标题、展示说明和内部备注。</Typography.Text>
               <Select
                 allowClear
                 loading={marketingLoading}
@@ -370,14 +372,12 @@ export function SessionList() {
                 }))}
               />
               {!marketingLoading && selectedScriptDocumentId && !marketingVersions.length ? (
-                <Typography.Text type="secondary">该剧本暂无正式物料版本，请先到知识库详情页生成并审批。</Typography.Text>
+                <Typography.Text type="secondary">该剧本暂无可复用的正式物料。</Typography.Text>
               ) : null}
               {marketingResult ? <ScriptMarketingResult result={marketingResult} /> : null}
             </Space>
           </Card>
-          <Form.Item name="scriptName" label="剧本名称" rules={[{ required: true }]}>
-            <Input placeholder="选择剧本后自动带出，也可手动修改快照名称" />
-          </Form.Item>
+          <Form.Item name="scriptName" hidden><Input /></Form.Item>
           <Form.Item name="title" label="场次标题" rules={[{ required: true }]}>
             <Input placeholder="例如：周六晚《捉小三》欢乐车" />
           </Form.Item>

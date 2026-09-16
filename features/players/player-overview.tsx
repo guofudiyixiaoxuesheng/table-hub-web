@@ -171,26 +171,27 @@ export function PlayerOverview() {
             {
               title: "玩家",
               dataIndex: "nickname",
-              width: 220,
+              width: 180,
+              ellipsis: { showTitle: true },
               render: (_, record) => (
-                <Space>
+                <Space style={{ maxWidth: "100%" }}>
                   <Avatar style={{ background: "#6d5dfc" }}>{(record.nickname || record.phone || "玩").slice(0, 1)}</Avatar>
-                  <span>{record.nickname || "未命名玩家"}</span>
+                  <Typography.Text ellipsis style={{ maxWidth: 112 }}>{record.nickname || "未命名玩家"}</Typography.Text>
                 </Space>
               ),
             },
-            { title: "手机号", dataIndex: "phone", width: 160, render: (value) => value || "暂无" },
-            { title: "偏好", dataIndex: "preference", width: 180, render: (value) => value ? <Tag>{value}</Tag> : "暂无" },
-            { title: "备注", dataIndex: "notes", ellipsis: true, render: (value) => value || "暂无" },
-            { title: "更新时间", dataIndex: "updated_at", width: 160, render: formatTime },
+            { title: "手机号", dataIndex: "phone", width: 140, ellipsis: { showTitle: true }, render: (value) => value || "暂无" },
+            { title: "手填偏好", dataIndex: "preference", width: 150, ellipsis: { showTitle: true }, render: (value) => value ? <Tag style={{ maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", verticalAlign: "middle" }}>{value}</Tag> : "暂无" },
+            { title: "备注", dataIndex: "notes", width: 170, ellipsis: { showTitle: true }, render: (value) => value || "暂无" },
+            { title: "更新时间", dataIndex: "updated_at", width: 148, ellipsis: true, render: formatTime },
             {
               title: "操作",
-              width: 150,
+              width: 220,
               fixed: "right",
               render: (_, record) => (
-                <Space size={4}>
+                <Space size={2} style={{ whiteSpace: "nowrap" }}>
                   <Button type="text" icon={<EditOutlined />} onClick={() => openEdit(record)}>编辑</Button>
-                  <Button type="text" icon={<BarChartOutlined />} onClick={() => void openBehavior(record)}>行为</Button>
+                  <Button type="text" icon={<BarChartOutlined />} onClick={() => void openBehavior(record)}>行为画像</Button>
                   <Button icon={<DeleteOutlined />} onClick={() => remove(record)} className="danger-soft-button">删除</Button>
                 </Space>
               ),

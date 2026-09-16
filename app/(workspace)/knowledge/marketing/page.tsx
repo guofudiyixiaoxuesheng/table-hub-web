@@ -8,8 +8,8 @@ export default function KnowledgeMarketingPage() {
   return (
     <div className="page-stack">
       <PageHeading
-        title="知识库 / AI 运营物料"
-        description="把剧本资料转成朋友圈宣传文案、宣传图方案和创建场次时可复用的表单内容"
+        title="知识库 / 运营物料"
+        description="生成运营文案、确认正式版本、生成主图，并复用到剧本场次"
       />
       <ScriptMarketingDashboard />
     </div>

@@ -13,10 +13,12 @@ import {
   listRooms,
   listScriptOptions,
   updateGameSession,
+  updateSessionPlayer,
   type DmOption,
   type GameSessionDetail,
   type GameSessionPayload,
   type Room,
+  type SessionPlayer,
   type ScriptOption,
   type SessionPlayerPayload,
 } from "@/lib/game-sessions/game-session-api";
@@ -56,10 +58,12 @@ export function SessionDetail({ sessionId }: { sessionId: string }) {
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
   const [playerOpen, setPlayerOpen] = useState(false);
+  const [seatEditorPlayer, setSeatEditorPlayer] = useState<SessionPlayer | null>(null);
   const [createPlayerFirst, setCreatePlayerFirst] = useState(false);
   const [saving, setSaving] = useState(false);
   const [sessionForm] = Form.useForm<GameSessionPayload>();
   const [playerForm] = Form.useForm<SessionPlayerPayload & { selectedStorePlayerId?: string; preference?: string; password?: string; confirmPassword?: string }>();
+  const [seatForm] = Form.useForm<{ seatCount: number }>();
   const [messageApi, contextHolder] = message.useMessage();
   const [modalApi, modalContextHolder] = Modal.useModal();
 
@@ -192,6 +196,35 @@ export function SessionDetail({ sessionId }: { sessionId: string }) {
     });
   };
 
+  const openSeatEditor = (player: SessionPlayer) => {
+    setSeatEditorPlayer(player);
+    seatForm.setFieldsValue({ seatCount: player.seatCount });
+  };
+
+  const submitSeatEditor = async () => {
+    if (!session || !seatEditorPlayer) return;
+    const { seatCount } = await seatForm.validateFields();
+    setSaving(true);
+    try {
+      await updateSessionPlayer(session.id, seatEditorPlayer.id, {
+        userId: seatEditorPlayer.userId,
+        playerName: seatEditorPlayer.playerName,
+        phone: seatEditorPlayer.phone,
+        seatCount,
+        source: seatEditorPlayer.source,
+        status: seatEditorPlayer.status,
+        notes: seatEditorPlayer.notes,
+      });
+      setSeatEditorPlayer(null);
+      await loadDetail();
+      messageApi.success("占位人数已更新");
+    } catch (error) {
+      messageApi.error(error instanceof Error ? error.message : "占位人数更新失败");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const cancelSession = () => {
     if (!session) return;
     modalApi.confirm({
@@ -222,6 +255,19 @@ export function SessionDetail({ sessionId }: { sessionId: string }) {
   const activeRoomOptions = roomOptions
     .filter((room) => room.status === "active" || room.id === session.roomId)
     .map((room) => ({ value: room.id, label: `${room.name}（${room.capacity}人）` }));
+  const activePlayerUserIds = new Set(
+    session.players
+      .filter((player) => player.status !== "cancelled" && player.userId)
+      .map((player) => player.userId),
+  );
+  const activePlayerPhones = new Set(
+    session.players
+      .filter((player) => player.status !== "cancelled" && player.phone)
+      .map((player) => player.phone),
+  );
+  const selectablePlayerOptions = playerOptions.filter(
+    (player) => !activePlayerUserIds.has(player.user_id) && (!player.phone || !activePlayerPhones.has(player.phone)),
+  );
 
   return (
     <div className="page-stack">
@@ -254,7 +300,19 @@ export function SessionDetail({ sessionId }: { sessionId: string }) {
         </Card>
         <Card className="surface-card span-4" title="快捷操作">
           <Space direction="vertical" style={{ width: "100%" }}>
-            <Button type="primary" block icon={<PlusOutlined />} onClick={() => setPlayerOpen(true)}>手动新增约车</Button>
+            <Button
+              type="primary"
+              block
+              icon={<PlusOutlined />}
+              onClick={() => {
+                playerForm.resetFields();
+                playerForm.setFieldsValue({ seatCount: 1, status: "confirmed" });
+                setCreatePlayerFirst(false);
+                setPlayerOpen(true);
+              }}
+            >
+              手动新增约车
+            </Button>
             <Button block icon={<EditOutlined />} onClick={openEdit}>编辑场次信息</Button>
             <Button block danger disabled={session.status === "cancelled"} onClick={cancelSession}>取消场次</Button>
             <Button block>复制报名链接</Button>
@@ -266,7 +324,10 @@ export function SessionDetail({ sessionId }: { sessionId: string }) {
             locale={{ emptyText: "暂无约车玩家" }}
             renderItem={(player) => (
               <List.Item
-                actions={[<Button key="delete" icon={<DeleteOutlined />} onClick={() => removePlayer(player.id)} className="danger-soft-button">移除</Button>]}
+                actions={[
+                  <Button key="seats" icon={<EditOutlined />} disabled={player.status === "cancelled"} onClick={() => openSeatEditor(player)}>调整占位</Button>,
+                  <Button key="delete" icon={<DeleteOutlined />} onClick={() => removePlayer(player.id)} className="danger-soft-button">移除</Button>,
+                ]}
                 extra={<Tag color={player.status === "confirmed" ? "success" : "processing"}>{playerStatusLabels[player.status] ?? player.status}</Tag>}
               >
                 <List.Item.Meta
@@ -321,7 +382,8 @@ export function SessionDetail({ sessionId }: { sessionId: string }) {
               <Select
                 showSearch
                 optionFilterProp="label"
-                options={playerOptions.map((item) => ({ value: item.id, label: `${item.nickname || "未命名"}${item.phone ? ` · ${item.phone}` : ""}` }))}
+                options={selectablePlayerOptions.map((item) => ({ value: item.id, label: `${item.nickname || "未命名"}${item.phone ? ` · ${item.phone}` : ""}` }))}
+                notFoundContent="所有客户已在本车，或请手动创建新玩家"
                 onChange={(value) => {
                   const player = playerOptions.find((item) => item.id === value);
                   playerForm.setFieldsValue({ playerName: player?.nickname || player?.phone || "", phone: player?.phone || undefined });
@@ -358,6 +420,21 @@ export function SessionDetail({ sessionId }: { sessionId: string }) {
           <Form.Item name="seatCount" label="占位人数"><InputNumber min={1} max={10} style={{ width: "100%" }} /></Form.Item>
           <Form.Item name="status" label="状态"><Select options={[{ value: "pending", label: "待确认" }, { value: "confirmed", label: "已确认" }]} /></Form.Item>
           <Form.Item name="notes" label="备注"><Input.TextArea rows={2} /></Form.Item>
+        </Form>
+      </Modal>
+      <Modal
+        title={`调整占位人数${seatEditorPlayer ? ` · ${seatEditorPlayer.playerName}` : ""}`}
+        open={Boolean(seatEditorPlayer)}
+        onOk={() => void submitSeatEditor()}
+        onCancel={() => setSeatEditorPlayer(null)}
+        confirmLoading={saving}
+        okText="保存"
+      >
+        <Form form={seatForm} layout="vertical">
+          <Form.Item name="seatCount" label="占位人数" rules={[{ required: true, message: "请输入占位人数" }]}>
+            <InputNumber min={1} max={10} style={{ width: "100%" }} />
+          </Form.Item>
+          <Typography.Text type="secondary">已在车上的玩家不能重复新增；需要增加或减少席位请在这里调整。</Typography.Text>
         </Form>
       </Modal>
     </div>

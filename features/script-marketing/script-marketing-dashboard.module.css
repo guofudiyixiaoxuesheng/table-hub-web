@@ -2,6 +2,27 @@
   display: grid;
   grid-template-columns: minmax(220px, 1fr) 160px 96px;
   gap: 10px;
+  margin-bottom: 14px;
+}
+
+.marketingTable :global(.ant-table) {
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.marketingTable :global(.ant-table-container) {
+  max-width: 100%;
+}
+
+.marketingTable :global(.ant-table-content),
+.marketingTable :global(.ant-table-body) {
+  overflow-x: auto !important;
+}
+
+.marketingTable :global(.ant-table-cell-fix-right),
+.marketingTable :global(.ant-table-cell-fix-right-first),
+.marketingTable :global(.ant-table-cell-fix-right-last) {
+  background: #fff;
 }
 
 @media (max-width: 640px) {
