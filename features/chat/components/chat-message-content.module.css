@@ -109,3 +109,131 @@
   max-width: 100%;
   border-radius: 10px;
 }
+
+.carpoolCandidates {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.carpoolCandidatesHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  color: #27223c;
+  font-weight: 650;
+}
+
+.carpoolCandidatesHeader small {
+  color: #858197;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.carpoolCandidate {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+  padding: 14px;
+  overflow: hidden;
+  border: 1px solid #e3defa;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #fbfaff 0%, #f4f2ff 100%);
+  box-shadow: 0 5px 16px rgb(75 57 151 / 6%);
+}
+
+.carpoolCandidate::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: linear-gradient(#836bff, #b5a7ff);
+  content: "";
+}
+
+.carpoolCandidateIndex {
+  flex: 0 0 auto;
+  color: #998ce0;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.carpoolCandidateBody {
+  min-width: 0;
+  flex: 1;
+}
+
+.carpoolCandidateTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.carpoolCandidate strong {
+  overflow: hidden;
+  color: #25213d;
+  font-size: 15px;
+  line-height: 22px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.carpoolRecruitingTag {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: 99px;
+  background: #e8f8e9;
+  color: #269447;
+  font-size: 11px;
+  line-height: 18px;
+}
+
+.carpoolCandidate p {
+  margin: 2px 0 0;
+  overflow: hidden;
+  color: #777287;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.carpoolCandidateMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 7px;
+  color: #6e7080;
+  font-size: 12px;
+}
+
+.carpoolCandidateMeta span {
+  white-space: nowrap;
+}
+
+.carpoolCandidateMeta b {
+  color: #5d43d6;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .carpoolCandidatesHeader {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .carpoolCandidate {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .carpoolCandidate > :global(.ant-btn) {
+    width: 100%;
+    margin-left: 27px;
+  }
+}

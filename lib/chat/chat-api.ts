@@ -21,6 +21,7 @@ export type ChatResponse = {
   answer: string;
   nextAction: string;
   citations: Record<string, unknown>[];
+  scenePayload: Record<string, unknown>;
 };
 
 export type ChatStreamMode = "updates" | "values";

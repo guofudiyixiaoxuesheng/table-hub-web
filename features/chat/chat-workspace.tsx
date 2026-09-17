@@ -15,7 +15,8 @@ import {
   type ChatMessage,
   type ChatSessionSummary,
 } from "@/lib/chat/chat-api";
-import { ChatMessageContent } from "./components/chat-message-content";
+import { CarpoolReservationModal, consumePendingCarpoolReservation } from "./components/carpool-reservation-modal";
+import { ChatMessageContent, type CarpoolSessionCandidate } from "./components/chat-message-content";
 import styles from "./chat-workspace.module.css";
 
 const quickQuestions = ["推荐适合新手的 6 人本", "周六还有哪些空场？", "DM 开本第一幕应该注意什么？"];
@@ -49,8 +50,9 @@ export function ChatWorkspace() {
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [loadingThreadId, setLoadingThreadId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [reservationSession, setReservationSession] = useState<CarpoolSessionCandidate | null>(null);
   const [messageApi, contextHolder] = antdMessage.useMessage();
-  const { loading: authLoading } = useAuth();
+  const { loading: authLoading, user } = useAuth();
 
   const refreshSessions = async (ownerGuestId = getGuestId()) => {
     setLoadingSessions(true);
@@ -71,6 +73,12 @@ export function ChatWorkspace() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading]);
 
+  useEffect(() => {
+    if (authLoading || !user) return;
+    const pending = consumePendingCarpoolReservation();
+    if (pending) setReservationSession(pending);
+  }, [authLoading, user]);
+
   const conversationItems = useMemo<ConversationItemType[]>(
     () => sessions.map((session) => ({
       key: session.threadId,
@@ -85,7 +93,7 @@ export function ChatWorkspace() {
     () => messages.map((item, index) => ({
       key: `${item.role}-${index}`,
       role: item.role === "user" ? "user" : "ai",
-      content: <ChatMessageContent message={item} streaming={sending && index === messages.length - 1 && item.role === "assistant"} />,
+      content: <ChatMessageContent message={item} streaming={sending && index === messages.length - 1 && item.role === "assistant"} onReserve={setReservationSession} />,
       typing: index === messages.length - 1 && item.role === "assistant" ? { effect: "typing", step: 4, interval: 20 } : false,
     })),
     [messages, sending],
@@ -170,7 +178,7 @@ export function ChatWorkspace() {
       });
       if (!result?.threadId) throw new Error("AI 对话接口返回异常：缺少 threadId");
       setThreadId(result.threadId);
-      setMessages([...nextMessages, { role: "assistant", messageType: "text", content: result.answer, metadata: { scene: result.scene } }]);
+      setMessages([...nextMessages, { role: "assistant", messageType: "text", content: result.answer, metadata: { scene: result.scene, scenePayload: result.scenePayload } }]);
       void refreshSessions();
     } catch (error) {
       messageApi.error(error instanceof Error ? error.message : "发送失败");
@@ -288,6 +296,11 @@ export function ChatWorkspace() {
           />
         </div>
       </div>
+      <CarpoolReservationModal
+        session={reservationSession}
+        onClose={() => setReservationSession(null)}
+        onJoined={() => void refreshSessions()}
+      />
     </section>
   );
 }

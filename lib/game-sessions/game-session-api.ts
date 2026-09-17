@@ -90,6 +90,9 @@ export type GameSession = {
   joinedSeats: number;
   playerCount: number;
   dmName: string | null;
+  myReservationId?: string | null;
+  myReservationStatus?: SessionPlayerStatus | null;
+  myReservationCode?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -128,6 +131,10 @@ export type SessionPlayerPayload = {
   source: SessionJoinSource;
   status: SessionPlayerStatus;
   notes?: string | null;
+};
+
+export type JoinGameSessionPayload = {
+  seatCount: number;
 };
 
 export type GameSessionListParams = {
@@ -198,6 +205,14 @@ export function deleteGameSession(id: string) {
 
 export function cancelGameSession(id: string) {
   return apiFetch<GameSessionDetail>(`/api/v1/game-sessions/${id}/cancel`, { method: "POST" });
+}
+
+export function joinGameSession(id: string, payload: JoinGameSessionPayload) {
+  return apiFetch<GameSessionDetail>(`/api/v1/game-sessions/${id}/join`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
 }
 
 export function addSessionPlayer(sessionId: string, payload: SessionPlayerPayload) {

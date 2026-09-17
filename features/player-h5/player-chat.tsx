@@ -13,7 +13,9 @@ import {
   type ChatMessage,
   type ChatSessionSummary,
 } from "@/lib/chat/chat-api";
-import { ChatMessageContent } from "@/features/chat/components/chat-message-content";
+import { CarpoolReservationModal, consumePendingCarpoolReservation } from "@/features/chat/components/carpool-reservation-modal";
+import { ChatMessageContent, type CarpoolSessionCandidate } from "@/features/chat/components/chat-message-content";
+import { useAuth } from "@/features/auth/auth-provider";
 import styles from "./player-mobile-shell.module.css";
 
 const quickQuestions = ["周六有没有能拼的剧本？", "推荐新手 6 人本", "恐怖本适合几个人？"];
@@ -39,7 +41,9 @@ function PlayerChatInner() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [loadingThreadId, setLoadingThreadId] = useState<string | null>(null);
   const [humanModalOpen, setHumanModalOpen] = useState(false);
+  const [reservationSession, setReservationSession] = useState<CarpoolSessionCandidate | null>(null);
   const [messageApi, contextHolder] = antdMessage.useMessage();
+  const { loading: authLoading, user } = useAuth();
 
   const refreshSessions = useCallback(async () => {
     setLoadingHistory(true);
@@ -58,6 +62,12 @@ function PlayerChatInner() {
     }, 0);
     return () => window.clearTimeout(timer);
   }, [refreshSessions]);
+
+  useEffect(() => {
+    if (authLoading || !user) return;
+    const pending = consumePendingCarpoolReservation();
+    if (pending) setReservationSession(pending);
+  }, [authLoading, user]);
 
   const createSession = () => {
     setThreadId(null);
@@ -131,7 +141,7 @@ function PlayerChatInner() {
         },
       });
       setThreadId(result.threadId);
-      setMessages([...nextMessages, { role: "assistant", messageType: "text", content: result.answer, metadata: { scene: result.scene } }]);
+      setMessages([...nextMessages, { role: "assistant", messageType: "text", content: result.answer, metadata: { scene: result.scene, scenePayload: result.scenePayload } }]);
       void refreshSessions();
     } catch (error) {
       messageApi.error(error instanceof Error ? error.message : "AI 回复失败");
@@ -176,7 +186,7 @@ function PlayerChatInner() {
           messages.map((item, index) => (
             <div className={`${styles.playerBubbleRow} ${item.role === "user" ? styles.playerBubbleUser : ""}`} key={`${item.role}-${index}`}>
               <div className={styles.playerBubble}>
-                <ChatMessageContent message={item} streaming={sending && index === messages.length - 1 && item.role === "assistant"} />
+                <ChatMessageContent message={item} streaming={sending && index === messages.length - 1 && item.role === "assistant"} onReserve={setReservationSession} />
               </div>
             </div>
           ))
@@ -239,6 +249,11 @@ function PlayerChatInner() {
         {threadId ? <p>当前会话：{threadId}</p> : null}
         <p>后续可以在这里接入企业微信、工单或店员后台待处理列表。</p>
       </Modal>
+      <CarpoolReservationModal
+        session={reservationSession}
+        onClose={() => setReservationSession(null)}
+        onJoined={() => void refreshSessions()}
+      />
     </section>
   );
 }

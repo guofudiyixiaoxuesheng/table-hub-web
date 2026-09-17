@@ -1,4 +1,5 @@
 import { apiFetch } from "@/lib/api/client";
+import { joinGameSession } from "@/lib/game-sessions/game-session-api";
 import type { GameSessionStatus } from "@/lib/game-sessions/game-session-api";
 import type { SessionPlayerStatus } from "@/lib/game-sessions/game-session-api";
 import type { GameSessionImageSource } from "@/lib/game-sessions/game-session-api";
@@ -91,12 +92,16 @@ export function listPublicGameSessions(params: PublicListParams = {}) {
   return apiFetch<PublicGameSession[]>(`/api/v1/game-sessions${buildSearch(params)}`);
 }
 
+export function listMyGameSessions() {
+  return apiFetch<PublicGameSession[]>("/api/v1/game-sessions/mine");
+}
+
 export function getPublicGameSession(id: string, storeId?: string) {
   return apiFetch<PublicGameSession>(`/api/v1/game-sessions/${id}${buildSearch({ storeId })}`);
 }
 
-export function joinPublicGameSession(id: string) {
-  return apiFetch<PublicGameSession>(`/api/v1/game-sessions/${id}/join`, { method: "POST" });
+export function joinPublicGameSession(id: string, seatCount = 1) {
+  return joinGameSession(id, { seatCount }) as Promise<PublicGameSession>;
 }
 
 export function cancelPublicGameSessionJoin(id: string) {

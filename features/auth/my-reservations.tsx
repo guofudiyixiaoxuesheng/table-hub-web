@@ -1,39 +1,39 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, Empty, Skeleton, Space, Statistic, Tag, Typography } from "antd";
-import { getMyPlayerBehavior, type PlayerBehaviorSummary, type PlayerBehaviorSession } from "@/lib/players/player-api";
+import { Card, Empty, Skeleton, Space, Statistic } from "antd";
 import { SessionCarCard, type SessionCarCardData } from "@/features/sessions/session-car-card";
+import { listMyGameSessions, type PublicGameSession } from "@/lib/player-h5/player-public-api";
 import { useAuth } from "./auth-provider";
 
-function toSessionCard(item: PlayerBehaviorSession): SessionCarCardData {
+function toSessionCard(item: PublicGameSession): SessionCarCardData {
   return {
-    id: item.session_id,
+    id: item.id,
     title: item.title,
-    scriptName: item.script_name,
-    startTime: item.start_time,
-    durationMinutes: item.duration_minutes,
+    scriptName: item.scriptName,
+    startTime: item.startTime,
+    durationMinutes: item.durationMinutes,
     capacity: item.capacity,
-    joinedSeats: item.joined_seats,
-    priceCents: item.price_cents,
-    coverImageUrl: item.cover_image_url,
-    joinStatus: item.join_status,
-    reservationCode: item.reservation_code,
+    joinedSeats: item.joinedSeats,
+    priceCents: item.priceCents,
+    coverImageUrl: item.coverImageUrl,
+    joinStatus: item.myReservationStatus ?? "confirmed",
+    reservationCode: item.myReservationCode ?? "",
   };
 }
 
 export function MyReservations({ compact = false }: { compact?: boolean }) {
   const { user } = useAuth();
-  const [data, setData] = useState<PlayerBehaviorSummary | null>(null);
+  const [sessions, setSessions] = useState<PublicGameSession[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!user || user.role === "guest") return;
     void Promise.resolve().then(() => {
       setLoading(true);
-      getMyPlayerBehavior()
-        .then(setData)
-        .catch(() => setData(null))
+      listMyGameSessions()
+        .then(setSessions)
+        .catch(() => setSessions([]))
         .finally(() => setLoading(false));
     });
   }, [user]);
@@ -46,32 +46,26 @@ export function MyReservations({ compact = false }: { compact?: boolean }) {
     );
   }
 
-  const activeSessions = data?.recent_sessions.filter((item) => item.join_status !== "cancelled") ?? [];
-  const recentSessions = data?.recent_sessions ?? [];
+  const activeSessions = sessions.filter((item) => item.myReservationStatus !== "cancelled");
+  const cancelledCount = sessions.length - activeSessions.length;
 
   return (
     <Card className="surface-card" title="我的拼车">
       {loading ? <Skeleton active /> : null}
-      {!loading && !data ? <Empty description="暂无拼车记录，去玩家端选择一个喜欢的剧本吧" /> : null}
-      {!loading && data ? (
+      {!loading && sessions.length === 0 ? <Empty description="暂无拼车记录，去玩家端选择一个喜欢的剧本吧" /> : null}
+      {!loading && sessions.length > 0 ? (
         <Space direction="vertical" size={16} style={{ width: "100%" }}>
           <Space wrap>
-            <Statistic title="累计预约" value={data.reservation_count} suffix="次" />
-            <Statistic title="进行中" value={data.active_reservation_count} suffix="个" />
-            <Statistic title="跳车/取消" value={data.cancelled_count} suffix="次" />
+            <Statistic title="累计预约" value={sessions.length} suffix="次" />
+            <Statistic title="进行中" value={activeSessions.length} suffix="个" />
+            <Statistic title="跳车/取消" value={cancelledCount} suffix="次" />
           </Space>
-          {data.favorite_genres.length ? (
-            <Space wrap>
-              <Typography.Text type="secondary">偏好类型</Typography.Text>
-              {data.favorite_genres.map((genre) => <Tag key={genre}>{genre}</Tag>)}
-            </Space>
-          ) : null}
           <div style={{ display: "grid", gap: 12 }}>
-            {(activeSessions.length ? activeSessions : recentSessions).slice(0, compact ? 3 : 6).map((item) => (
+            {(activeSessions.length ? activeSessions : sessions).slice(0, compact ? 3 : 6).map((item) => (
               <SessionCarCard
-                key={`${item.session_id}-${item.reservation_code}`}
+                key={`${item.id}-${item.myReservationCode}`}
                 session={toSessionCard(item)}
-                href={`/p/sessions/${item.session_id}`}
+                href={`/p/sessions/${item.id}`}
                 compact={compact}
               />
             ))}
