@@ -5,7 +5,7 @@ import { appendCurrentStoreId } from "@/lib/store/current-store";
 // 浏览器统一通过 Next 的 /api rewrite 转发后端：局域网/HTTPS 页面不必直接访问 :8000。
 // 服务端渲染仍需要一个可直连的后端地址。
 export const API_BASE_URL = typeof window === "undefined"
-  ? (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000")
+  ? (process.env.INTERNAL_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000")
   : "";
 
 let refreshRequest: Promise<AuthSession> | null = null;
